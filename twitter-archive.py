@@ -4,7 +4,6 @@ import argparse
 import sys
 from pathlib import Path
 from shutil import rmtree
-import os
 from os import path
 import json
 import urllib.request
