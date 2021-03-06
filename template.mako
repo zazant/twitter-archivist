@@ -129,6 +129,13 @@ main {
 					</video>
 				</div>
 				%endif
+				%if i["type"] == "gif":
+				<div class="media video">
+					<video controls>
+						<source src="${i["variants"][0]["url"]}">
+					</video>
+				</div>
+				%endif
 				%endfor
 			</div>
 			%endif
