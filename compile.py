@@ -18,6 +18,7 @@ def compile(args):
 		data = json.loads(data_raw)
 
 		new_data = []
+		urls = []
 
 		conversations = {}
 
@@ -30,6 +31,7 @@ def compile(args):
 				a = next((link for link in d["outlinks"] if l.replace("\u2026", "") in link), None)
 				if a:
 					content = content.replace(l, "<a href='" + a + "'>" + l.replace("\u2026", "...") + "</a>")
+			d["renderedContent"] = content
 			if d["quotedTweet"] != None:
 				qcontent = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["quotedTweet"]["renderedContent"])
 				other_l = re.findall(r'[a-zA-Z]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', qcontent)
@@ -38,67 +40,56 @@ def compile(args):
 					if a != None:
 						qcontent = qcontent.replace(l, "<a href='" + a + "'>" + l.replace("\u2026", "...") + "</a>")
 				d["quotedTweet"]["renderedContent"] = qcontent
-			new_data.append({
-				"date": d["date"],
-				"renderedContent": content,
-				"likeCount": d["likeCount"],
-				"quotedTweet":  d["quotedTweet"] if "quotedTweet" in d else None,
-				"media": d["media"],
-				"conversationId": d["conversationId"]
-			})
-
-		print("downloading images")
-		t = tqdm(new_data)
-		for d in t:
+			if d["conversationId"] not in conversations:
+				conversations[d["conversationId"]] = [d]
+			else:
+				conversations[d["conversationId"]].insert(0, d)
 			if d["media"]:
 				for i in d["media"]:
 					if i["type"] == "photo":
 						f = name + "/photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
 						if not path.exists(f):
-							t.set_description(f)
-							urllib.request.urlretrieve(i["fullUrl"], f)
+							urls.append((i["fullUrl"], f))
 						i["fullUrl"] = f.split("/", 1)[1]
 					if i["type"] == "video":
 						url = next(video for video in i["variants"] if video["bitrate"])["url"]
 						f = name + "/photos/" + url.split('/')[-1].split('?')[0]
 						if not path.exists(f):
-							t.set_description(f)
-							urllib.request.urlretrieve(url, f)
+							urls.append((url, f))
 						i["variants"][0]["url"] = f.split("/", 1)[1]
 					if i["type"] == "gif":
 						url = next(video for video in i["variants"])["url"]
 						f = name + "/photos/" + url.split('/')[-1]
 						if not path.exists(f):
-							t.set_description(f)
-							urllib.request.urlretrieve(url, f)
+							urls.append((url, f))
 						i["variants"][0]["url"] = f.split("/", 1)[1]
-			if d["quotedTweet"]:
-				if d["quotedTweet"]["media"]:
-					for i in d["quotedTweet"]["media"]:
-						if i["type"] == "photo":
-							f = name + "/photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
-							if not path.exists(f):
-								t.set_description(f)
-								urllib.request.urlretrieve(i["fullUrl"], f)
-							i["fullUrl"] = f.split("/", 1)[1]
-						if i["type"] == "video":
-							url = next(video for video in i["variants"] if video["bitrate"])["url"]
-							f = name + "/photos/" + url.split('/')[-1].split('?')[0]
-							if not path.exists(f):
-								t.set_description(f)
-								urllib.request.urlretrieve(url, f)
-							i["variants"][0]["url"] = f.split("/", 1)[1]
-						if i["type"] == "gif":
-							url = next(video for video in i["variants"])["url"]
-							f = name + "/photos/" + url.split('/')[-1]
-							if not path.exists(f):
-								t.set_description(f)
-								urllib.request.urlretrieve(url, f)
-							i["variants"][0]["url"] = f.split("/", 1)[1]
-			if d["conversationId"] not in conversations:
-				conversations[d["conversationId"]] = [d]
-			else:
-				conversations[d["conversationId"]].insert(0, d)
+			if d["quotedTweet"] and d["quotedTweet"]["media"]:
+				for i in d["quotedTweet"]["media"]:
+					if i["type"] == "photo":
+						f = name + "/photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
+						if not path.exists(f):
+							urls.append((i["fullUrl"], f))
+						i["fullUrl"] = f.split("/", 1)[1]
+					if i["type"] == "video":
+						url = next(video for video in i["variants"] if video["bitrate"])["url"]
+						f = name + "/photos/" + url.split('/')[-1].split('?')[0]
+						if not path.exists(f):
+							urls.append((url, f))
+						i["variants"][0]["url"] = f.split("/", 1)[1]
+					if i["type"] == "gif":
+						url = next(video for video in i["variants"])["url"]
+						f = name + "/photos/" + url.split('/')[-1]
+						if not path.exists(f):
+							urls.append((url, f))
+						i["variants"][0]["url"] = f.split("/", 1)[1]
+
+		if urls:
+			print("downloading images")
+			t = tqdm(urls)
+			for d in t:
+				t.set_description(d[1])
+				urllib.request.urlretrieve(d[0], d[1])
+				
 
 		template = Template('''<!DOCTYPE HTML>
 		<html>
