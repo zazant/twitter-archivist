@@ -29,16 +29,16 @@ requirements: `mako, tqdm, python 3 (python 3.9 used), snscrape (must be install
 
 ---
 
-![1](screenshots/1.png)
+![1](../extra/screenshots/1.png)
 
 ---
 
-![2](screenshots/2.png)
+![2](../extra/screenshots/2.png)
 
 ---
 
-![3](screenshots/3.png)
+![3](../extra/screenshots/3.png)
 
 ---
 
-![4](screenshots/4.png)
+![4](../extra/screenshots/4.png)
