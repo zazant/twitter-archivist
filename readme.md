@@ -4,7 +4,7 @@ makes a nice looking html webpage from a twitter user with sorting options. save
 
 uses snscrape, so it will break if twitter changes something and messes with that...
 
-requirements: `mako, tqdm, python 3 (python 3.9 used), snscrape (must be installed and executable through your shell)`
+requirements: `mako, tqdm, python >= 3.8`
 
 	usage: twitter-archive.py [-h] {archive,update,compile} ...
 

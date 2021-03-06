@@ -8,9 +8,58 @@ from os import path
 import json
 import urllib.request
 import re
+import snscrape.twitter as twitter
 
 from mako.template import Template
 from tqdm import tqdm
+
+import datetime
+def parse_datetime_arg(arg):
+	for format in (
+			"%Y-%m-%d %H:%M:%S %z",
+			"%Y-%m-%d %H:%M:%S",
+			"%Y-%m-%d %z",
+			"%Y-%m-%d",
+	):
+		try:
+			d = datetime.datetime.strptime(arg, format)
+		except ValueError:
+			continue
+		else:
+			if d.tzinfo is None:
+				return d.replace(tzinfo=datetime.timezone.utc)
+			return d
+	# Try treating it as a unix timestamp
+	try:
+		d = datetime.datetime.fromtimestamp(int(arg), datetime.timezone.utc)
+	except ValueError:
+		pass
+	else:
+		return d
+	raise argparse.ArgumentTypeError(f"Cannot parse {arg!r} into a datetime object")
+
+def get_tweets(username, since_r=None):
+	if since_r is not None:
+		since = parse_datetime_arg(since_r)
+	else:
+		since = None
+	results = []
+	try:
+		a = twitter.TwitterUserScraper(username).get_items()
+		i = 0
+		for i, tweet in enumerate(a, start=1):
+			tweet_json = json.loads(tweet.json())
+			if since is not None and tweet.date < since:
+				print(f'Exiting due to reaching older results than {since_r}')
+				break
+			results.append(tweet_json)
+			if i % 100 == 0:
+				print(f'Scraping, {i} results so far')
+		print(f'Done, found {i} results')
+		return results
+	except:
+		return None
+
 
 def archive(args):
 	try:
@@ -21,25 +70,12 @@ def archive(args):
 		print("directory already exists, continuing")
 	if Path(args.name + "/" + args.name + "_data.json").exists():
 		sys.exit("error: " + args.name + "_data.json already exists")
-	with open(args.name + "/" + args.name + "_data_raw", "w") as f:
-		if (subprocess.call(["snscrape", "--jsonl", "--progress", "twitter-user", args.username], stdout=f) != 0):
-			rmtree(args.name)
-			sys.exit("error: scraping failed")
-	raw_file_data = None
-	file_data = []
-	with open(args.name + "/" + args.name + "_data_raw", "r") as f:
-		raw_file_data = f.readlines()
-	for i, line in enumerate(raw_file_data):
-		if (i == 0):
-			line = "[" + line
-		if (i != len(raw_file_data) - 1):
-			line = line.rstrip("\n") + ",\n"
-		if (i == len(raw_file_data) - 1):
-			line = line.rstrip("\n") + "]"
-		file_data.append(line)
+	a = get_tweets(args.username)
+	if (not a):
+		rmtree(args.name)
+		sys.exit("error: scraping failed")
 	with open(args.name + "/" + args.name + "_data.json", "w") as f:
-		f.writelines(file_data)
-	Path.unlink(Path(args.name + "/" + args.name + "_data_raw"))
+		json.dump(a, f, indent=4)
 	Path(args.name + "/photos").mkdir(exist_ok=True)
 
 	compile_args = argparse.Namespace()
@@ -55,36 +91,29 @@ def update(args):
 		a = {}
 		with open(name + "/" + name + "_data.json", "r") as f:
 			a = json.loads(f.read())
-			with open(name + "/temp.json", "w") as temp:
-				if not a or not a[0] or not "date" in a[0] or not "user" in a[0] or not "username" in a[0]["user"]:
+			if not a or not a[0] or not "date" in a[0] or not "user" in a[0] or not "username" in a[0]["user"]:
+				failed = True
+			else:
+				date = a[0]["date"].split("T")[0]
+				username = a[0]["user"]["username"]
+				print("date: " + date)
+				tweets = get_tweets(username, since_r=date)
+				if not tweets:
 					failed = True
-				else:
-					date = a[0]["date"].split("T")[0]
-					username = a[0]["user"]["username"]
-					print("date: " + date)
-					try:
-						print(" ".join(["snscrape", "--jsonl", "--progress", "--since", date, "twitter-user", username]))
-						if (subprocess.call(["snscrape", "--jsonl", "--progress", "--since", date, "twitter-user", username], stdout=temp) != 0):
-							failed = True
-					except:
-						failed = True
 			if failed:
-				Path(name + "/temp.json").unlink(missing_ok=True)
 				print("scraping_failed")
 				continue
-			for line in reversed(open(name + "/temp.json", "r").readlines()):
+			for tweet in reversed(tweets):
 				try:
-					json_line = json.loads(line)
-					if not any(json_line["url"] == x["url"] for x in a):
-						a.insert(0, json_line)
-						print("added " + json_line["url"])
+					if not any(tweet["url"] == x["url"] for x in a):
+						a.insert(0, tweet)
+						print("added " + tweet["url"])
 					else:
-						print("skipping " + json_line["url"])
+						print("skipping " + tweet["url"])
 				except:
-					print("failed line: " + line)
-		Path(name + "/temp.json").unlink(missing_ok=True)
+					print("failed tweet: " + tweet)
 		with open(name + "/" + name + "_data.json", "w") as f:
-			json.dump(a, f)
+			json.dump(a, f, indent=4)
 
 		compile_args = argparse.Namespace()
 		compile_args.folder_name = [name]
