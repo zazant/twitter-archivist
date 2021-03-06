@@ -41,7 +41,10 @@ def archive(args):
 		f.writelines(file_data)
 	Path.unlink(Path(args.name + "/" + args.name + "_data_raw"))
 	Path(args.name + "/photos").mkdir(exist_ok=True)
-	compile_html({"folder_name": [args.name]})
+
+	compile_args = argparse.Namespace()
+	compile_args.folder_name = [args.name]
+	compile_html(compile_args)
 
 def update(args):
 	for name in args.folder_name:
@@ -82,10 +85,13 @@ def update(args):
 		Path(name + "/temp.json").unlink(missing_ok=True)
 		with open(name + "/" + name + "_data.json", "w") as f:
 			json.dump(a, f)
-		compile_html({"folder_name": [name]})
+
+		compile_args = argparse.Namespace()
+		compile_args.folder_name = [name]
+		compile_html(compile_args)
 
 def compile_html(args):
-	for name in args["folder_name"]:
+	for name in args.folder_name:
 		data_file = name + "/" + name + "_data.json"
 
 		print("reading json")
