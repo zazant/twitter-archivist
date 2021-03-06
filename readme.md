@@ -12,7 +12,8 @@ requirements: `mako, tqdm, python 3 (python 3.9 used), snscrape (must be install
 
 	archive: twitter-archive.py archive [-h] name username
 	
-	makes a folder called "name" and scrapes the twitter user with the handle "username" into it. "name" is also used in the title of the html page.
+	makes a folder called "name" and scrapes the twitter user with the handle "username" into it.
+	"name" is also used in the title of the html page.
 
 	---
 	
