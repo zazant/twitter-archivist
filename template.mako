@@ -131,7 +131,7 @@ main {
 				%endif
 				%if i["type"] == "gif":
 				<div class="media video">
-					<video controls>
+					<video loop autoplay>
 						<source src="${i["variants"][0]["url"]}">
 					</video>
 				</div>
@@ -159,7 +159,7 @@ main {
 					%endif
 					%if i["type"] == "gif":
 					<div class="media video">
-						<video controls>
+						<video loop autoplay>
 							<source src="${i["variants"][0]["url"]}">
 						</video>
 					</div>
