@@ -1,6 +1,6 @@
 # twitter-archive
 
-makes a nice looking html webpage from a twitter user with sorting options. saves images, videos, and qts, too
+makes a nice looking html webpage from a twitter user with sorting options. saves images, videos, threads, and qts, too
 
 uses snscrape, so it will break if twitter changes something and messes with that...
 
