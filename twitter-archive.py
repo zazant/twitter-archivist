@@ -4,9 +4,14 @@ import argparse
 import sys
 from pathlib import Path
 from shutil import rmtree
-from compile import compile
 import os
+from os import path
 import json
+import urllib.request
+import re
+
+from mako.template import Template
+from tqdm import tqdm
 
 def archive(args):
 	try:
@@ -37,10 +42,7 @@ def archive(args):
 		f.writelines(file_data)
 	Path.unlink(Path(args.name + "/" + args.name + "_data_raw"))
 	Path(args.name + "/photos").mkdir(exist_ok=True)
-	class Namespace:
-		def __init__(self, **kwargs):
-			self.__dict__.update(kwargs)
-	compile(Namespace(folder_name=[args.name]))
+	compile_html({"folder_name": [args.name]})
 
 def update(args):
 	for name in args.folder_name:
@@ -81,10 +83,93 @@ def update(args):
 		Path(name + "/temp.json").unlink(missing_ok=True)
 		with open(name + "/" + name + "_data.json", "w") as f:
 			json.dump(a, f)
-		class Namespace:
-			def __init__(self, **kwargs):
-				self.__dict__.update(kwargs)
-		compile(Namespace(folder_name=[name]))
+		compile_html({"folder_name": [name]})
+
+def compile_html(args):
+	for name in args["folder_name"]:
+		data_file = name + "/" + name + "_data.json"
+
+		print("reading json")
+		with open(data_file, 'r') as d:
+			data_raw = d.read()
+
+		data = json.loads(data_raw)
+
+		urls = []
+
+		conversations = {}
+
+		linkpattern = re.compile(r'([A-Z]+)([0-9]+)')
+		print("processing data")
+		for d in data:
+			content = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["renderedContent"])
+			other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', content)
+			for l in other_l:
+				a = next((link for link in d["outlinks"] if l.replace("\u2026", "") in link), None)
+				if a:
+					content = content.replace(l, "<a href='" + a + "'>" + l.replace("\u2026", "...") + "</a>")
+			d["renderedContent"] = content
+			if d["quotedTweet"] != None:
+				qcontent = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["quotedTweet"]["renderedContent"])
+				other_l = re.findall(r'[a-zA-Z]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', qcontent)
+				for l in other_l:
+					a = next((link for link in d["quotedTweet"]["outlinks"] if l.replace("\u2026", "") in link), None)
+					if a != None:
+						qcontent = qcontent.replace(l, "<a href='" + a + "'>" + l.replace("\u2026", "...") + "</a>")
+				d["quotedTweet"]["renderedContent"] = qcontent
+			if d["conversationId"] not in conversations:
+				conversations[d["conversationId"]] = [d]
+			else:
+				conversations[d["conversationId"]].insert(0, d)
+			if d["media"]:
+				for i in d["media"]:
+					if i["type"] == "photo":
+						f = name + "/photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
+						if not path.exists(f):
+							urls.append((i["fullUrl"], f))
+						i["fullUrl"] = f.split("/", 1)[1]
+					if i["type"] == "video":
+						url = next(video for video in i["variants"] if video["bitrate"])["url"]
+						f = name + "/photos/" + url.split('/')[-1].split('?')[0]
+						if not path.exists(f):
+							urls.append((url, f))
+						i["variants"][0]["url"] = f.split("/", 1)[1]
+					if i["type"] == "gif":
+						url = next(video for video in i["variants"])["url"]
+						f = name + "/photos/" + url.split('/')[-1]
+						if not path.exists(f):
+							urls.append((url, f))
+						i["variants"][0]["url"] = f.split("/", 1)[1]
+			if d["quotedTweet"] and d["quotedTweet"]["media"]:
+				for i in d["quotedTweet"]["media"]:
+					if i["type"] == "photo":
+						f = name + "/photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
+						if not path.exists(f):
+							urls.append((i["fullUrl"], f))
+						i["fullUrl"] = f.split("/", 1)[1]
+					if i["type"] == "video":
+						url = next(video for video in i["variants"] if video["bitrate"])["url"]
+						f = name + "/photos/" + url.split('/')[-1].split('?')[0]
+						if not path.exists(f):
+							urls.append((url, f))
+						i["variants"][0]["url"] = f.split("/", 1)[1]
+					if i["type"] == "gif":
+						url = next(video for video in i["variants"])["url"]
+						f = name + "/photos/" + url.split('/')[-1]
+						if not path.exists(f):
+							urls.append((url, f))
+						i["variants"][0]["url"] = f.split("/", 1)[1]
+
+		if urls:
+			print("downloading images")
+			t = tqdm(urls)
+			for d in t:
+				t.set_description(d[1])
+				urllib.request.urlretrieve(d[0], d[1])
+				
+		print("making html")
+		with open(name + "/" + name + ".html", 'w') as out:
+			out.write(Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations))
 
 parser = argparse.ArgumentParser(description="Twitter account archiver.")
 subparsers = parser.add_subparsers(dest="mode", required=True, help="mode")
@@ -100,7 +185,7 @@ update_parser.set_defaults(func=update)
 
 compile_parser = subparsers.add_parser("compile")
 compile_parser.add_argument("folder_name", nargs="+", type=str)
-compile_parser.set_defaults(func=compile)
+compile_parser.set_defaults(func=compile_html)
 
 args = parser.parse_args()
 args.func(args)
