@@ -26,22 +26,7 @@ requirements: `mako, tqdm, python 3 (python 3.9 used), snscrape (must be install
 
 	compiles changes to html template into folder name.
 
----
-
 ![1](screenshots/1.png)
-the main webpage
-
----
-
 ![2](screenshots/2.png)
-an image
-
----
-
 ![3](screenshots/3.png)
-quote tweet + an image
-
----
-
 ![4](screenshots/4.png)
-threading + an image
