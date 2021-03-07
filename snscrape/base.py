@@ -11,7 +11,7 @@ import warnings
 
 
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.INFO)
+# logger.setLevel(logging.DEBUG)
 # import sys
 # handler = logging.StreamHandler(sys.stdout)
 # handler.setLevel(logging.DEBUG)
@@ -184,6 +184,8 @@ class Scraper:
             )
             logger.info(f"Retrieving {req.url}")
             logger.debug(f"... with headers: {headers!r}")
+            # for header in headers.keys():
+            #     print(header + ": " + headers[header])
             if data:
                 logger.debug(f"... with data: {data!r}")
             try:

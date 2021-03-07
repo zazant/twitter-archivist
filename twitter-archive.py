@@ -9,6 +9,7 @@ import json
 import urllib.request
 import re
 import snscrape.twitter as twitter
+import time
 
 from mako.template import Template
 from tqdm import tqdm
@@ -38,27 +39,27 @@ def parse_datetime_arg(arg):
 		return d
 	raise argparse.ArgumentTypeError(f"Cannot parse {arg!r} into a datetime object")
 
-def get_tweets(username, since_r=None):
-	if since_r is not None:
-		since = parse_datetime_arg(since_r)
-	else:
-		since = None
+def get_tweets(username, since=None, until=None, private=False):
+	if since:
+		since = parse_datetime_arg(since)
 	results = []
 	try:
-		a = twitter.TwitterUserScraper(username).get_items()
+		a = twitter.TwitterUserScraper(username, until=until, private=private).get_items()
 		i = 0
 		for i, tweet in enumerate(a, start=1):
 			tweet_json = json.loads(tweet.json())
 			if since is not None and tweet.date < since:
-				print(f'Exiting due to reaching older results than {since_r}')
+				print(f'Exiting due to reaching older results than {since.strftime("%Y-%m-%d")}')
 				break
 			results.append(tweet_json)
 			if i % 100 == 0:
 				print(f'Scraping, {i} results so far')
+				if private:
+					time.sleep(1)
 		print(f'Done, found {i} results')
 		return results
 	except:
-		return None
+		return results
 
 
 def archive(args):
@@ -70,12 +71,16 @@ def archive(args):
 		print("directory already exists, continuing")
 	if Path(args.name + "/" + args.name + "_data.json").exists():
 		sys.exit("error: " + args.name + "_data.json already exists")
-	a = get_tweets(args.username)
+	a = get_tweets(args.username, since=args.since, private=args.private)
 	if (not a):
 		rmtree(args.name)
 		sys.exit("error: scraping failed")
 	with open(args.name + "/" + args.name + "_data.json", "w") as f:
 		json.dump(a, f, indent=4)
+	if a[0] and "user" in a[0] and a[0]["user"]:
+		with open(args.name + "/" + args.name + "_user_data.json", "w") as f:
+			json.dump(a[0]["user"], f, indent=4)
+
 	Path(args.name + "/photos").mkdir(exist_ok=True)
 
 	compile_args = argparse.Namespace()
@@ -87,6 +92,16 @@ def update(args):
 		print("----------------------")
 		print(name)
 		print("----------------------")
+		private = False
+		try:
+			with open(name + "/" + name + "_user_data.json", "r") as f:
+				temp_user = json.loads(f.read())
+				if temp_user["protected"]:
+					private = True
+					print("protected user")
+		except:
+			private = False
+
 		failed = False
 		a = {}
 		with open(name + "/" + name + "_data.json", "r") as f:
@@ -94,24 +109,44 @@ def update(args):
 			if not a or not a[0] or not "date" in a[0] or not "user" in a[0] or not "username" in a[0]["user"]:
 				failed = True
 			else:
-				date = a[0]["date"].split("T")[0]
+				if not args.reverse:
+					date = a[0]["date"].split("T")[0]
+				else:
+					date = a[-1]["date"].split("T")[0]
 				username = a[0]["user"]["username"]
 				print("date: " + date)
-				tweets = get_tweets(username, since_r=date)
+				if not args.reverse:
+					tweets = get_tweets(username, since=date, private=private)
+				else:
+					tweets = get_tweets(username, until=date, private=private)
 				if not tweets:
 					failed = True
 			if failed:
-				print("scraping_failed")
-				continue
-			for tweet in reversed(tweets):
-				try:
-					if not any(tweet["url"] == x["url"] for x in a):
-						a.insert(0, tweet)
-						print("added " + tweet["url"])
-					else:
-						print("skipping " + tweet["url"])
-				except:
-					print("failed tweet: " + tweet)
+				print("no tweets found")
+			if not args.reverse:
+				for tweet in reversed(tweets):
+					try:
+						if not any(tweet["url"] == x["url"] for x in a):
+							a.insert(0, tweet)
+							print("added " + tweet["url"])
+						else:
+							print("skipping " + tweet["url"])
+					except:
+						print("failed tweet: " + tweet)
+				if tweets and tweets[0] and "user" in tweets[0] and tweets[0]["user"]:
+					with open(name + "/" + name + "_user_data.json", "w") as fdata:
+						json.dump(tweets[0]["user"], fdata, indent=4)
+			else:
+				for tweet in tweets:
+					try:
+						if not any(tweet["url"] == x["url"] for x in a):
+							a.append(tweet)
+							print("added " + tweet["url"])
+						else:
+							print("skipping " + tweet["url"])
+					except:
+						print("failed tweet: " + tweet)
+
 		with open(name + "/" + name + "_data.json", "w") as f:
 			json.dump(a, f, indent=4)
 
@@ -142,7 +177,7 @@ def compile_html(args):
 				a = next((link for link in d["outlinks"] if l.replace("\u2026", "") in link), None)
 				if a:
 					content = content.replace(l, "<a href='" + a + "'>" + l.replace("\u2026", "...") + "</a>")
-			d["renderedContent"] = content
+			d["renderedContent"] = content.replace("\n", "<br>")
 			if d["quotedTweet"] != None:
 				qcontent = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["quotedTweet"]["renderedContent"])
 				other_l = re.findall(r'[a-zA-Z]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', qcontent)
@@ -200,7 +235,7 @@ def compile_html(args):
 			for d in t:
 				t.set_description(d[1])
 				urllib.request.urlretrieve(d[0], d[1])
-				
+
 		print("making html")
 		with open(name + "/" + name + ".html", 'w') as out:
 			out.write(Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations))
@@ -211,10 +246,15 @@ subparsers = parser.add_subparsers(dest="mode", required=True, help="mode")
 archive_parser = subparsers.add_parser("archive")
 archive_parser.add_argument("name", type=str)
 archive_parser.add_argument("username", type=str)
+archive_parser.add_argument('--since', dest='since', type=parse_datetime_arg)
+archive_parser.add_argument('--private', dest='private', action='store_true')
+archive_parser.set_defaults(private=False)
 archive_parser.set_defaults(func=archive)
 
 update_parser = subparsers.add_parser("update")
 update_parser.add_argument("folder_name", nargs="+", type=str)
+update_parser.add_argument('--reverse', dest='reverse', action='store_true')
+update_parser.set_defaults(reverse=False)
 update_parser.set_defaults(func=update)
 
 compile_parser = subparsers.add_parser("compile")

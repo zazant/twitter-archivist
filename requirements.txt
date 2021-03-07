@@ -1,2 +1,5 @@
 mako
 tqdm
+requests[socks]
+lxml
+beautifulsoup4
