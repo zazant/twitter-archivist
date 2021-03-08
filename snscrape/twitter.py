@@ -263,10 +263,11 @@ class TwitterAPIScraper(base.Scraper):
 			return False, "non-200 status code"
 		return True, None
 
-	def _get_api_data(self, endpoint, params, private_h=None):
+	def _get_api_data(self, endpoint, params, private_headers=None):
 		self._ensure_guest_token()
-		if private_h:
-			h = private_h
+		if private_headers:
+			h = private_headers
+			print("private headers")
 		else:
 			h = self._apiHeaders
 		r = self._get(
@@ -281,7 +282,7 @@ class TwitterAPIScraper(base.Scraper):
 			raise base.ScraperException("Received invalid JSON from Twitter") from e
 		return obj
 
-	def _iter_api_data(self, endpoint, params, paginationParams=None, cursor=None, private=False):
+	def _iter_api_data(self, endpoint, params, paginationParams=None, cursor=None, private_headers=None):
 		# Iterate over endpoint with params/paginationParams, optionally starting from a cursor
 		# Handles guest token extraction using the baseUrl passed to __init__ etc.
 		# Order from params and paginationParams is preserved. To insert the cursor at a particular location, insert a 'cursor' key into paginationParams there (value is overwritten).
@@ -291,24 +292,9 @@ class TwitterAPIScraper(base.Scraper):
 			reqParams = paginationParams.copy()
 			reqParams["cursor"] = cursor
 		stopOnEmptyResponse = False
-		private_headers = {}
-		if private:
-			print("paste headers object:")
-			lines = []
-			while True:
-				line = input()
-				if line:
-					lines.append(line)
-				else:
-					break
-			text = '\n'.join(lines)
-			private_headers = json.loads(text)
 		while True:
 			logger.info(f"Retrieving scroll page {cursor}")
-			if private:
-				obj = self._get_api_data(endpoint, reqParams, private_h=private_headers)
-			else:
-				obj = self._get_api_data(endpoint, reqParams)
+			obj = self._get_api_data(endpoint, reqParams, private_headers=private_headers)
 			yield obj
 
 			# No data format test, just a hard and loud crash if anything's wrong :-)
@@ -594,7 +580,7 @@ class TwitterAPIScraper(base.Scraper):
 class TwitterSearchScraper(TwitterAPIScraper):
 	name = "twitter-search"
 
-	def __init__(self, query, private=False, cursor=None, **kwargs):
+	def __init__(self, query, private_headers=None, cursor=None, **kwargs):
 		super().__init__(
 			baseUrl="https://twitter.com/search?"
 					+ urllib.parse.urlencode(
@@ -609,7 +595,7 @@ class TwitterSearchScraper(TwitterAPIScraper):
 		)
 		self._query = query
 		self._cursor = cursor
-		self._private = private
+		self._private_headers = private_headers
 
 	def _check_scroll_response(self, r):
 		if r.status_code == 429:
@@ -660,7 +646,7 @@ class TwitterSearchScraper(TwitterAPIScraper):
 			d["ext"] = "ext=mediaStats%2ChighlightedLabel"
 
 		for obj in self._iter_api_data(
-				"https://api.twitter.com/2/search/adaptive.json", params, paginationParams, private=self._private
+				"https://api.twitter.com/2/search/adaptive.json", params, paginationParams, private_headers=self._private_headers
 		):
 			yield from self._instructions_to_tweets(obj)
 
@@ -677,13 +663,13 @@ class TwitterSearchScraper(TwitterAPIScraper):
 class TwitterUserScraper(TwitterSearchScraper):
 	name = "twitter-user"
 
-	def __init__(self, username, until=None, private=False, **kwargs):
+	def __init__(self, username, until=None, private_headers=None, **kwargs):
 		if not self.is_valid_username(username):
 			raise ValueError("Invalid username")
 		until_format = ""
 		if until:
 			until_format = " until:" + until
-		super().__init__(f"from:{username + until_format}", private=private, **kwargs)
+		super().__init__(f"from:{username + until_format}", private_headers=private_headers, **kwargs)
 		self._username = username
 
 	def _get_entity(self):

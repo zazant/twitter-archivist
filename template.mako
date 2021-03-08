@@ -221,6 +221,8 @@ main {
 	refresh();
 	document.querySelector("#loading").style.display = "none";
 	document.querySelector("main").style.display = "flex";
+	document.querySelector("#title-container-links").innerHTML =
+        "<span>" + document.querySelectorAll(".tweet").length + " tweets</span> · " + document.querySelector("#title-container-links").innerHTML;
 	
 	function shuffle(array) {
 		var currentIndex = array.length, temporaryValue, randomIndex;

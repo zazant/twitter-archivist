@@ -1,4 +1,4 @@
-#!python3
+#!/usr/lib/python3
 import subprocess
 import argparse
 import sys
@@ -7,6 +7,7 @@ from shutil import rmtree
 from os import path
 import json
 import urllib.request
+import urllib.error
 import re
 import snscrape.twitter as twitter
 import time
@@ -39,12 +40,31 @@ def parse_datetime_arg(arg):
 		return d
 	raise argparse.ArgumentTypeError(f"Cannot parse {arg!r} into a datetime object")
 
-def get_tweets(username, since=None, until=None, private=False):
+def get_tweets(username, since=None, until=None, private=False, headers_file=None):
 	if since:
 		since = parse_datetime_arg(since)
 	results = []
 	try:
-		a = twitter.TwitterUserScraper(username, until=until, private=private).get_items()
+		private_headers = {}
+		if private:
+			if headers_file:
+				try:
+					with open(headers_file, "r") as f:
+						private_headers = json.loads(f.read())
+				except:
+					print("headers_file opening failed")
+			else:
+				print("paste headers object:")
+				lines = []
+				while True:
+					line = input()
+					if line:
+						lines.append(line)
+					else:
+						break
+				text = '\n'.join(lines)
+				private_headers = json.loads(text)
+		a = twitter.TwitterUserScraper(username, until=until, private_headers=private_headers).get_items()
 		i = 0
 		for i, tweet in enumerate(a, start=1):
 			tweet_json = json.loads(tweet.json())
@@ -54,11 +74,10 @@ def get_tweets(username, since=None, until=None, private=False):
 			results.append(tweet_json)
 			if i % 100 == 0:
 				print(f'Scraping, {i} results so far')
-				if private:
-					time.sleep(1)
 		print(f'Done, found {i} results')
 		return results
 	except:
+		print("error in get_tweets")
 		return results
 
 
@@ -71,7 +90,7 @@ def archive(args):
 		print("directory already exists, continuing")
 	if Path(args.name + "/" + args.name + "_data.json").exists():
 		sys.exit("error: " + args.name + "_data.json already exists")
-	a = get_tweets(args.username, since=args.since, private=args.private)
+	a = get_tweets(args.username, since=args.since, private=args.private, headers_file=args.headers_file)
 	if (not a):
 		rmtree(args.name)
 		sys.exit("error: scraping failed")
@@ -85,6 +104,7 @@ def archive(args):
 
 	compile_args = argparse.Namespace()
 	compile_args.folder_name = [args.name]
+	compile_args.alert = False
 	compile_html(compile_args)
 
 def update(args):
@@ -116,46 +136,52 @@ def update(args):
 				username = a[0]["user"]["username"]
 				print("date: " + date)
 				if not args.reverse:
-					tweets = get_tweets(username, since=date, private=private)
+					tweets = get_tweets(username, since=date, private=private, headers_file=args.headers_file)
 				else:
-					tweets = get_tweets(username, until=date, private=private)
+					tweets = get_tweets(username, until=date, private=private, headers_file=args.headers_file)
 				if not tweets:
 					failed = True
 			if failed:
 				print("no tweets found")
-			if not args.reverse:
-				for tweet in reversed(tweets):
-					try:
-						if not any(tweet["url"] == x["url"] for x in a):
-							a.insert(0, tweet)
-							print("added " + tweet["url"])
-						else:
-							print("skipping " + tweet["url"])
-					except:
-						print("failed tweet: " + tweet)
-				if tweets and tweets[0] and "user" in tweets[0] and tweets[0]["user"]:
-					with open(name + "/" + name + "_user_data.json", "w") as fdata:
-						json.dump(tweets[0]["user"], fdata, indent=4)
 			else:
-				for tweet in tweets:
-					try:
-						if not any(tweet["url"] == x["url"] for x in a):
-							a.append(tweet)
-							print("added " + tweet["url"])
-						else:
-							print("skipping " + tweet["url"])
-					except:
-						print("failed tweet: " + tweet)
+				if not args.reverse:
+					for tweet in reversed(tweets):
+						try:
+							if not any(tweet["url"] == x["url"] for x in a):
+								a.insert(0, tweet)
+								print("added " + tweet["url"])
+						except:
+							print("failed tweet: " + tweet)
+					if tweets and tweets[0] and "user" in tweets[0] and tweets[0]["user"]:
+						with open(name + "/" + name + "_user_data.json", "w") as fdata:
+							json.dump(tweets[0]["user"], fdata, indent=4)
+				else:
+					for tweet in tweets:
+						try:
+							if not any(tweet["url"] == x["url"] for x in a):
+								a.append(tweet)
+								print("added " + tweet["url"])
+							else:
+								print("skipping " + tweet["url"])
+						except:
+							print("failed tweet: " + tweet)
 
 		with open(name + "/" + name + "_data.json", "w") as f:
 			json.dump(a, f, indent=4)
 
+		print("compiling html")
+
 		compile_args = argparse.Namespace()
 		compile_args.folder_name = [name]
+		compile_args.alert = False
 		compile_html(compile_args)
 
 def compile_html(args):
 	for name in args.folder_name:
+		if args.alert:
+			print("----------------------")
+			print(name)
+			print("----------------------")
 		data_file = name + "/" + name + "_data.json"
 
 		print("reading json")
@@ -234,7 +260,10 @@ def compile_html(args):
 			t = tqdm(urls)
 			for d in t:
 				t.set_description(d[1])
-				urllib.request.urlretrieve(d[0], d[1])
+				try:
+					urllib.request.urlretrieve(d[0], d[1])
+				except urllib.error.HTTPError:
+					print(d[1] + " (" + d[0] + "): download failed")
 
 		print("making html")
 		with open(name + "/" + name + ".html", 'w') as out:
@@ -248,18 +277,21 @@ archive_parser.add_argument("name", type=str)
 archive_parser.add_argument("username", type=str)
 archive_parser.add_argument('--since', dest='since', type=parse_datetime_arg)
 archive_parser.add_argument('--private', dest='private', action='store_true')
+archive_parser.add_argument('--headers-file', default=None, type=str)
 archive_parser.set_defaults(private=False)
 archive_parser.set_defaults(func=archive)
 
 update_parser = subparsers.add_parser("update")
 update_parser.add_argument("folder_name", nargs="+", type=str)
 update_parser.add_argument('--reverse', dest='reverse', action='store_true')
+update_parser.add_argument('--headers-file', default=None, type=str)
 update_parser.set_defaults(reverse=False)
 update_parser.set_defaults(func=update)
 
 compile_parser = subparsers.add_parser("compile")
 compile_parser.add_argument("folder_name", nargs="+", type=str)
 compile_parser.set_defaults(func=compile_html)
+compile_parser.set_defaults(alert=True)
 
 args = parser.parse_args()
 args.func(args)
