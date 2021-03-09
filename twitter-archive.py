@@ -205,7 +205,7 @@ def compile_html(args):
 		print("processing data")
 		for d in tqdm(data):
 			content = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["renderedContent"])
-			other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', content)
+			other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9-]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', content)
 			for l in other_l:
 				a = next((link for link in d["outlinks"] if l.replace("\u2026", "") in link), None)
 				if a:
@@ -213,7 +213,7 @@ def compile_html(args):
 			d["renderedContent"] = content.replace("\n", "<br>")
 			if d["quotedTweet"] != None:
 				qcontent = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["quotedTweet"]["renderedContent"])
-				other_l = re.findall(r'[a-zA-Z]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', qcontent)
+				other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9-]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', qcontent)
 				for l in other_l:
 					a = next((link for link in d["quotedTweet"]["outlinks"] if l.replace("\u2026", "") in link), None)
 					if a != None:
@@ -399,7 +399,7 @@ def server(args):
 					conversations_page = conversations_page[start_index:end_index]
 			return Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations_page, pagination=pagination)
 
-	run(host='localhost', port=args.port)
+	run(host=args.ip, port=args.port)
 
 parser = argparse.ArgumentParser(description="Twitter account archiver.")
 subparsers = parser.add_subparsers(dest="mode", required=True, help="mode")
@@ -430,6 +430,7 @@ server_parser = subparsers.add_parser("server")
 server_parser.add_argument("folder_name", nargs="+", type=str)
 server_parser.add_argument('--pagination', default=0, dest='pagination', type=int)
 server_parser.add_argument('--port', default=8000, dest='port', type=int)
+server_parser.add_argument('--ip', default="localhost", dest='ip', type=str)
 server_parser.add_argument('--recache', dest='recache', action='store_true')
 server_parser.set_defaults(recache=False)
 server_parser.set_defaults(func=server)
