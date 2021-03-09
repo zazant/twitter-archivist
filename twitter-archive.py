@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 from shutil import rmtree
+import os
 from os import path
 import json
 import urllib.request
@@ -11,9 +12,13 @@ import urllib.error
 import re
 import snscrape.twitter as twitter
 import time
+import pickle
+from math import ceil
+from random import shuffle
 
 from mako.template import Template
 from tqdm import tqdm
+from bottle import route, run, template, static_file, redirect
 
 import datetime
 def parse_datetime_arg(arg):
@@ -105,6 +110,7 @@ def archive(args):
 	compile_args = argparse.Namespace()
 	compile_args.folder_name = [args.name]
 	compile_args.alert = False
+	compile_args.return_conversations = False
 	compile_html(compile_args)
 
 def update(args):
@@ -174,6 +180,7 @@ def update(args):
 		compile_args = argparse.Namespace()
 		compile_args.folder_name = [name]
 		compile_args.alert = False
+		compile_args.return_conversations = False
 		compile_html(compile_args)
 
 def compile_html(args):
@@ -196,7 +203,7 @@ def compile_html(args):
 
 		linkpattern = re.compile(r'([A-Z]+)([0-9]+)')
 		print("processing data")
-		for d in data:
+		for d in tqdm(data):
 			content = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["renderedContent"])
 			other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', content)
 			for l in other_l:
@@ -265,9 +272,134 @@ def compile_html(args):
 				except urllib.error.HTTPError:
 					print(d[1] + " (" + d[0] + "): download failed")
 
-		print("making html")
-		with open(name + "/" + name + ".html", 'w') as out:
-			out.write(Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations))
+		if not args.return_conversations:
+			print("making html")
+			with open(name + "/" + name + ".html", 'w') as out:
+				out.write(Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations.values(), pagination=None))
+		else:
+			return conversations
+
+def server(args):
+	cached_data = {}
+	if path.exists(".cached_server_data") and not args.recache:
+		print("loading cached data")
+		cached_data = pickle.load(open(".cached_server_data", "rb"))
+
+	if cached_data:
+		print("using cached data. use --recache to recache data")
+		modified_html_files = cached_data["modified_html_files"]
+		conversations = cached_data["conversations"]
+	else:
+		print("----------------------")
+		print("first time server setup. this might take a few minutes")
+		compile_args = argparse.Namespace()
+		conversations = {}
+		compile_args.alert = True
+		modified_html_files = {}
+		print("processing html files")
+		for name in args.folder_name:
+			with open(name + "/" + name + ".html", 'r') as f:
+				compile_args.folder_name = [name]
+				compile_args.return_conversations = True
+				conversations[name] = compile_html(compile_args)
+				html = f.read()
+			modified_html_files[name] = re.sub(r"(?<=img src=\")photos", "/accounts/" + name + "/photos", html)
+		print("caching data")
+		pickle.dump({
+			"modified_html_files": modified_html_files,
+			"conversations": conversations
+		}, open(".cached_server_data", "wb"))
+
+
+	@route('/')
+	def index():
+		return template("""
+		<body style="margin: 0 auto; max-width:750px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
+		<h1 style="margin: 8px 0">twitter-archive</h1>
+		<hr>
+		<main>
+		  % for name in folder_names:
+		  <a href="/accounts/{{name}}">{{name}}</a><br>
+		  <hr>
+		  % end
+		</main>
+		</body>
+		""", folder_names=args.folder_name)
+
+	@route("/accounts/<name>/<filepath:re:.*\.json>")
+	def server_static(name, filepath):
+		return static_file(name + "/" + filepath, root=os.getcwd())
+
+	@route('/accounts/<name>/photos/<filepath:path>')
+	@route('/accounts/<name>/<page:int>/photos/<filepath:path>')
+	@route('/accounts/<name>/<page:int>/<sort>/photos/<filepath:path>')
+	@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/photos/<filepath:path>')
+	@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>/photos/<filepath:path>')
+	@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>/<initiating_replies:int>/photos/<filepath:path>')
+	def server_static(name, filepath, page=1, sort="date", reverse=0, all_replies=1, initiating_replies=1):
+		return static_file(name + "/photos/" + filepath, root=os.getcwd())
+
+	@route('/accounts/<name>')
+	def index(name):
+		if not args.pagination:
+			return modified_html_files[name]
+		else:
+			redirect("/accounts/" + name + "/1")
+
+	if args.pagination:
+		@route('/accounts/<name>/<page:int>')
+		@route('/accounts/<name>/<page:int>/<sort>')
+		@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>')
+		@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>')
+		@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>/<initiating_replies:int>')
+		def index(name, page, sort="date", reverse=0, all_replies=1, initiating_replies=1):
+			pagination = {
+				"results": args.pagination,
+				"page": page,
+				"sort": sort,
+				"reverse": reverse,
+				"all-replies": all_replies,
+				"initiating-replies": initiating_replies,
+				"pages": ceil(len(conversations[name]) / args.pagination)
+			}
+			start_index = pagination["results"] * (pagination["page"] - 1)
+			end_index = start_index + pagination["results"]
+			conversations_page = []
+			filtered_items = []
+			if initiating_replies or all_replies:
+				for conversation in conversations[name].values():
+					if initiating_replies and "@" in conversation[0]["renderedContent"]:
+						continue
+					filtered_conversation = []
+					if all_replies:
+						for reply in conversation:
+							if "@" not in reply["renderedContent"]:
+								filtered_conversation.append(reply)
+						if len(filtered_conversation) == 0:
+							continue
+					else:
+						filtered_conversation = conversation
+					filtered_items.append(filtered_conversation)
+				pagination["pages"] = ceil(len(filtered_items) / args.pagination)
+			else:
+				filtered_items = conversations[name].values()
+
+			if start_index < len(conversations[name]):
+				if sort == "date":
+					conversations_page = sorted(list(filtered_items), key=lambda x: x[0]["date"], reverse=not bool(reverse))[start_index:end_index]
+				if sort == "thread-size":
+					conversations_page = sorted(list(filtered_items), key=lambda x: len(x),
+												reverse=not bool(reverse))[start_index:end_index]
+				if sort == "likes":
+					conversations_page = sorted(list(filtered_items), key=lambda x: x[0]["likeCount"],
+												reverse=not bool(reverse))[start_index:end_index]
+				if sort == "random":
+					conversations_page = list(filtered_items)
+					shuffle(conversations_page)
+					conversations_page = conversations_page[start_index:end_index]
+			return Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations_page, pagination=pagination)
+
+	run(host='localhost', port=8000)
 
 parser = argparse.ArgumentParser(description="Twitter account archiver.")
 subparsers = parser.add_subparsers(dest="mode", required=True, help="mode")
@@ -291,7 +423,15 @@ update_parser.set_defaults(func=update)
 compile_parser = subparsers.add_parser("compile")
 compile_parser.add_argument("folder_name", nargs="+", type=str)
 compile_parser.set_defaults(func=compile_html)
+compile_parser.set_defaults(return_conversations=False)
 compile_parser.set_defaults(alert=True)
+
+server_parser = subparsers.add_parser("server")
+server_parser.add_argument("folder_name", nargs="+", type=str)
+server_parser.add_argument('--pagination', default=0, dest='pagination', type=int)
+server_parser.add_argument('--recache', dest='recache', action='store_true')
+server_parser.set_defaults(recache=False)
+server_parser.set_defaults(func=server)
 
 args = parser.parse_args()
 args.func(args)

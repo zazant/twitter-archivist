@@ -4,16 +4,20 @@ makes a nice looking html webpage from a twitter user with sorting options. save
 
 uses snscrape, so it will break if twitter changes something and messes with that...
 
-requirements: `mako, tqdm, python >= 3.8`
+now includes a bottle based html server with pagination for viewing large twitter accounts
 
-	usage: twitter-archive.py [-h] {archive,update,compile} ...
+also -- the version of snscrape used here is modified by me to work with private twitter accounts. either paste a headers object when prompted or provide a json file from a request sent to the twitter api from your browser request logger
+
+requirements: `mako, tqdm, requests, bs4, bottle, python >= 3.8`
+
+	usage: twitter-archive.py [-h] {archive,update,compile,server} ...
 
 	--------
 
 	archive: twitter-archive.py archive [-h] name username
 	
-	makes a folder called "name" and scrapes the twitter user with the handle "username" into it.
-	"name" is also used in the title of the html page.
+	makes a folder called "name" and scrapes the twitter user with the handle "username" into it. "name" is also used
+    in the title of the html page.
 
 	---
 	
@@ -26,6 +30,13 @@ requirements: `mako, tqdm, python >= 3.8`
 	compile: twitter-archive.py compile [-h] folder_name [folder_name ...]
 
 	compiles changes to html template into folder name.
+
+	--- 
+
+    server: twitter-archive.py server [-h] [--pagination PAGINATION] [--recache] folder_name [folder_name ...]
+
+    runs server with folder names of twitter accounts. pagination is the amount of tweets to show on one page if that
+    is something you want.
 
 ---
 
