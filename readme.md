@@ -1,4 +1,4 @@
-# twitter-archive
+# twitter-archivist
 
 makes a nice looking html webpage from a twitter user with sorting options. saves images, videos, threads, and qts, too
 
@@ -10,30 +10,30 @@ also -- the version of snscrape used here is modified by me to work with private
 
 requirements: `mako, tqdm, requests, bs4, bottle, python >= 3.8`
 
-	usage: twitter-archive.py [-h] {archive,update,compile,server} ...
+	usage: twitter-archivist.py [-h] {archive,update,compile,server} ...
 
 	--------
 
-	archive: twitter-archive.py archive [-h] name username
+	archive: twitter-archivist.py archive [-h] name username
 	
 	makes a folder called "name" and scrapes the twitter user with the handle "username" into it. "name" is also used
     in the title of the html page.
 
 	---
 	
-	update: twitter-archive.py update [-h] folder_name [folder_name ...]
+	update: twitter-archivist.py update [-h] folder_name [folder_name ...]
 	
 	updates existing archive folder with new tweets.
 	
 	--- 
 
-	compile: twitter-archive.py compile [-h] folder_name [folder_name ...]
+	compile: twitter-archivist.py compile [-h] folder_name [folder_name ...]
 
 	compiles changes to html template into folder name.
 
 	--- 
 
-    server: twitter-archive.py server [-h] [--pagination PAGINATION] --port PORT [--recache] folder_name [folder_name ...]
+    server: twitter-archivist.py server [-h] [--pagination PAGINATION] --port PORT [--recache] folder_name [folder_name ...]
 
     runs server with folder names of twitter accounts. pagination is the amount of tweets to show on one page if that
     is something you want. port is defaulted to 8000

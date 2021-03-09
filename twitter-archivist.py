@@ -313,7 +313,7 @@ def server(args):
 	def index():
 		return template("""
 		<body style="margin: 0 auto; max-width:750px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
-		<h1 style="margin: 8px 0">twitter-archive</h1>
+		<h1 style="margin: 8px 0">twitter-archivist</h1>
 		<hr>
 		<main>
 		  % for name in folder_names:
