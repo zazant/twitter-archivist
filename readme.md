@@ -33,10 +33,10 @@ requirements: `mako, tqdm, requests, bs4, bottle, python >= 3.8`
 
 	--- 
 
-    server: twitter-archive.py server [-h] [--pagination PAGINATION] [--recache] folder_name [folder_name ...]
+    server: twitter-archive.py server [-h] [--pagination PAGINATION] --port PORT [--recache] folder_name [folder_name ...]
 
     runs server with folder names of twitter accounts. pagination is the amount of tweets to show on one page if that
-    is something you want.
+    is something you want. port is defaulted to 8000
 
 ---
 

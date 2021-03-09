@@ -399,7 +399,7 @@ def server(args):
 					conversations_page = conversations_page[start_index:end_index]
 			return Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations_page, pagination=pagination)
 
-	run(host='localhost', port=8000)
+	run(host='localhost', port=args.port)
 
 parser = argparse.ArgumentParser(description="Twitter account archiver.")
 subparsers = parser.add_subparsers(dest="mode", required=True, help="mode")
@@ -429,6 +429,7 @@ compile_parser.set_defaults(alert=True)
 server_parser = subparsers.add_parser("server")
 server_parser.add_argument("folder_name", nargs="+", type=str)
 server_parser.add_argument('--pagination', default=0, dest='pagination', type=int)
+server_parser.add_argument('--port', default=8000, dest='port', type=int)
 server_parser.add_argument('--recache', dest='recache', action='store_true')
 server_parser.set_defaults(recache=False)
 server_parser.set_defaults(func=server)
