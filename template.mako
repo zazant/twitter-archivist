@@ -51,35 +51,25 @@
 	padding-top: 8px;
     overflow: scroll
 }
-.container>img {
+.container>.media {
     ## border-top: 1px dashed grey;
     ## border-bottom: 1px dashed grey
 }
-.container>img:nth-child(1) {
+.container>.media:nth-child(1) {
     ## border-left: 1px dashed grey;
     border-radius: 7px 0 0 7px;
 }
-.container>img:nth-last-child(1) {
+.container>.media:nth-last-child(1) {
     ## border-right: 1px dashed grey;
     border-radius: 0 7px 7px 0;
 }
-.container>img:only-child {
+.container>.media:only-child {
     ## border: 1px dashed grey;
     border-radius: 7px !important;
 }
-img {
-	max-width: 100%;
-	max-height: 300px;
-}
-video {
-	max-width: 100%;
-	max-height: 300px;
-	padding: 0;
-}
 .media {
-	max-width: 100%;
-	max-height: 100%;
-	max-height: 300px;
+    height: 300px;
+    width: auto
 }
 a {
 	text-decoration: none;
@@ -176,25 +166,17 @@ main {
 			<div class="container">
 				%for i in d["media"]:
 				%if i["type"] == "photo":
-## 				<div id="image">
-##                     <% width, height = get_image_size(name + "/" + i["fullUrl"]) %>
-##                     <img src="${i["fullUrl"]}" width="auto" height="${height}">
-                    <img src="${i["fullUrl"]}" height="300px" width="auto">
-##                 </div>
+                <img src="${i["fullUrl"]}" class="media">
 				%endif
 				%if i["type"] == "video":
-				<div class="media video">
-					<video controls>
-						<source src="${i["variants"][0]["url"]}">
-					</video>
-				</div>
+                <video controls class="media">
+                    <source src="${i["variants"][0]["url"]}">
+                </video>
 				%endif
 				%if i["type"] == "gif":
-				<div class="media video">
-					<video loop autoplay>
-						<source src="${i["variants"][0]["url"]}">
-					</video>
-				</div>
+                <video loop autoplay class="media">
+                    <source src="${i["variants"][0]["url"]}">
+                </video>
 				%endif
 				%endfor
 			</div>
@@ -206,23 +188,17 @@ main {
 				<div class="container">
 					%for i in d["quotedTweet"]["media"]:
 					%if i["type"] == "photo":
-## 					<div class="media image">
-						<img src="${i["fullUrl"]}" height="300px" width="auto">
-##                     </div>
+                    <img src="${i["fullUrl"]}" class="media">
 					%endif
 					%if i["type"] == "video":
-					<div class="media video">
-						<video controls>
-							<source src="${i["variants"][0]["url"]}">
-						</video>
-					</div>
+                    <video controls class="media">
+                        <source src="${i["variants"][0]["url"]}">
+                    </video>
 					%endif
 					%if i["type"] == "gif":
-					<div class="media video">
-						<video loop autoplay>
-							<source src="${i["variants"][0]["url"]}" height="300px" width="auto">
-						</video>
-					</div>
+                    <video loop autoplay class="media">
+                        <source src="${i["variants"][0]["url"]}">
+                    </video>
 					%endif
 					%endfor
 				</div>

@@ -290,8 +290,6 @@ def server(args):
 		modified_html_files = cached_data["modified_html_files"]
 		conversations = cached_data["conversations"]
 	else:
-		print("----------------------")
-		print("first time server setup. this might take a few minutes")
 		compile_args = argparse.Namespace()
 		conversations = {}
 		compile_args.alert = True
