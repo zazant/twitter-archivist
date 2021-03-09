@@ -14,14 +14,14 @@ requirements: `mako, tqdm, requests, bs4, bottle, python >= 3.8`
 
 	--------
 
-	archive: twitter-archivist.py archive [-h] name username
+	archive: twitter-archivist.py archive [-h] [--since SINCE] [--private] [--headers-file HEADERS_FILE] name username
 	
 	makes a folder called "name" and scrapes the twitter user with the handle "username" into it. "name" is also used
     in the title of the html page.
 
 	---
 	
-	update: twitter-archivist.py update [-h] folder_name [folder_name ...]
+	update: twitter-archivist.py update [-h] [--reverse] [--headers-file HEADERS_FILE] folder_name [folder_name ...]
 	
 	updates existing archive folder with new tweets.
 	
@@ -33,7 +33,7 @@ requirements: `mako, tqdm, requests, bs4, bottle, python >= 3.8`
 
 	--- 
 
-    server: twitter-archivist.py server [-h] [--pagination PAGINATION] --port PORT [--recache] folder_name [folder_name ...]
+    server: twitter-archivist.py server [-h] [--pagination PAGINATION] --port PORT [--cache] folder_name [folder_name ...]
 
     runs server with folder names of twitter accounts. pagination is the amount of tweets to show on one page if that
     is something you want. port is defaulted to 8000

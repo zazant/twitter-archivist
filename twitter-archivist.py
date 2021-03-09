@@ -281,12 +281,12 @@ def compile_html(args):
 
 def server(args):
 	cached_data = {}
-	if path.exists(".cached_server_data") and not args.recache:
+	if path.exists(".cached_server_data") and args.cache:
 		print("loading cached data")
 		cached_data = pickle.load(open(".cached_server_data", "rb"))
 
 	if cached_data:
-		print("using cached data. use --recache to recache data")
+		print("loaded")
 		modified_html_files = cached_data["modified_html_files"]
 		conversations = cached_data["conversations"]
 	else:
@@ -429,8 +429,8 @@ server_parser.add_argument("folder_name", nargs="+", type=str)
 server_parser.add_argument('--pagination', default=0, dest='pagination', type=int)
 server_parser.add_argument('--port', default=8000, dest='port', type=int)
 server_parser.add_argument('--ip', default="localhost", dest='ip', type=str)
-server_parser.add_argument('--recache', dest='recache', action='store_true')
-server_parser.set_defaults(recache=False)
+server_parser.add_argument('--cache', dest='cache', action='store_true')
+server_parser.set_defaults(cache=False)
 server_parser.set_defaults(func=server)
 
 args = parser.parse_args()
