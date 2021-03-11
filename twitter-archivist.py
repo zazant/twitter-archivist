@@ -15,6 +15,7 @@ import time
 import pickle
 from math import ceil
 from random import shuffle
+import datetime
 
 from mako.template import Template
 from tqdm import tqdm
@@ -368,13 +369,23 @@ def server(args):
 
 	@route('/')
 	def index():
+		# account_info = {}
+		updated = {}
+		folder_names = []
+		for folder_name in args.folder_name:
+			parsed_folder_name, name = parse_folder_name(folder_name)
+			# technically not the latest tweet but close enough (latest tweet in latest conversation)
+			updated[name] = datetime.datetime.strptime(list(conversations[name].values())[0][-1]["date"], "%Y-%m-%dT%H:%M:%S+00:00").strftime("%A %m/%d/%Y at %-I:%M %p")
+			folder_names.append((parsed_folder_name, name))
+		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
+		# 		account_info[name] = json.loads(r.read())
 		return template("""
 		<body style="margin: 0 auto; max-width:750px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
 		<div style="display: flex; justify-content: space-between; align-items: center">
 			<h1 style="margin: 8px 0">twitter-archivist</h1>
-			<div>
-				<input type="submit" value="refresh" onclick="refresh()">
-				<input type="submit" value="update" onclick="update()">
+			<div style="color: grey">
+				<a style="cursor: pointer" onclick="refresh()">refresh</a> · 
+				<a style="cursor: pointer" onclick="update()">update</a>
 			</div>
 		</div>
 
@@ -403,15 +414,15 @@ def server(args):
 				xhr.send();
 			}
 		</script>
-		<hr>
+		<hr style="margin-top: 0">
 		<main>
-		  % for name in folder_names:
-		  <a href="/accounts/{{name}}">{{name}}</a><br>
+		  % for parsed_folder_name, name in folder_names:
+		  <a href="/accounts/{{name}}">{{name}}</a> <i style="color: grey">{{updated[name]}}</i><br>
 		  <hr>
 		  % end
 		</main>
 		</body>
-		""", folder_names=args.folder_name)
+		""", folder_names=folder_names, updated=updated)
 
 	@route('/refresh')
 	def index():
