@@ -45,7 +45,19 @@ def parse_datetime_arg(arg):
 		return d
 	raise argparse.ArgumentTypeError(f"Cannot parse {arg!r} into a datetime object")
 
-def get_tweets(username, since=None, until=None, private=False, headers_file=None):
+def parse_folder_name(folder_name):
+	if folder_name[-1] == "/":
+		folder_name = folder_name[0:-1]
+	if folder_name[0] == "/":
+		parsed_folder_name = folder_name
+		name = folder_name.split("/")[-1]
+	else:
+		parsed_folder_name = os.getcwd() + "/" + folder_name + "/"
+		name = [s for s in parsed_folder_name.split("/") if s != ""][-1]
+
+	return parsed_folder_name, name
+
+def get_tweets(username, since=None, until=None, private=False, headers_file=None, input_headers=True):
 	if since:
 		since = parse_datetime_arg(since)
 	results = []
@@ -58,7 +70,7 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 						private_headers = json.loads(f.read())
 				except:
 					print("headers_file opening failed")
-			else:
+			elif input_headers:
 				print("paste headers object:")
 				lines = []
 				while True:
@@ -69,6 +81,9 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 						break
 				text = '\n'.join(lines)
 				private_headers = json.loads(text)
+		if private and not private_headers:
+			print("private account with no headers given, skipping")
+			return
 		a = twitter.TwitterUserScraper(username, until=until, private_headers=private_headers).get_items()
 		i = 0
 		for i, tweet in enumerate(a, start=1):
@@ -87,8 +102,9 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 
 
 def archive(args):
+	parsed_folder_name, name = parse_folder_name(args.name)
 	try:
-		Path(args.name).mkdir(parents=True, exist_ok=False)
+		Path(parsed_folder_name).mkdir(parents=True, exist_ok=False)
 	except FileNotFoundError:
 		sys.exit("error: parent directory not found")
 	except FileExistsError:
@@ -99,13 +115,13 @@ def archive(args):
 	if (not a):
 		rmtree(args.name)
 		sys.exit("error: scraping failed")
-	with open(args.name + "/" + args.name + "_data.json", "w") as f:
+	with open(parsed_folder_name + name + "_data.json", "w") as f:
 		json.dump(a, f, indent=4)
 	if a[0] and "user" in a[0] and a[0]["user"]:
-		with open(args.name + "/" + args.name + "_user_data.json", "w") as f:
+		with open(parsed_folder_name + name + "_user_data.json", "w") as f:
 			json.dump(a[0]["user"], f, indent=4)
 
-	Path(args.name + "/photos").mkdir(exist_ok=True)
+	Path(parsed_folder_name + "photos").mkdir(exist_ok=True)
 
 	compile_args = argparse.Namespace()
 	compile_args.folder_name = [args.name]
@@ -114,13 +130,16 @@ def archive(args):
 	compile_html(compile_args)
 
 def update(args):
-	for name in args.folder_name:
+	for folder_name in args.folder_name:
+		parsed_folder_name, name = parse_folder_name(folder_name)
 		print("----------------------")
 		print(name)
 		print("----------------------")
+		if "input_headers" not in args:
+			args.input_headers = True
 		private = False
 		try:
-			with open(name + "/" + name + "_user_data.json", "r") as f:
+			with open(parsed_folder_name + name + "_user_data.json", "r") as f:
 				temp_user = json.loads(f.read())
 				if temp_user["protected"]:
 					private = True
@@ -130,7 +149,7 @@ def update(args):
 
 		failed = False
 		a = {}
-		with open(name + "/" + name + "_data.json", "r") as f:
+		with open(parsed_folder_name + name + "_data.json", "r") as f:
 			a = json.loads(f.read())
 			if not a or not a[0] or not "date" in a[0] or not "user" in a[0] or not "username" in a[0]["user"]:
 				failed = True
@@ -141,14 +160,18 @@ def update(args):
 					date = a[-1]["date"].split("T")[0]
 				username = a[0]["user"]["username"]
 				print("date: " + date)
-				if not args.reverse:
-					tweets = get_tweets(username, since=date, private=private, headers_file=args.headers_file)
-				else:
-					tweets = get_tweets(username, until=date, private=private, headers_file=args.headers_file)
+				try:
+					if not args.reverse:
+						tweets = get_tweets(username, since=date, private=private, headers_file=args.headers_file, input_headers=args.input_headers)
+					else:
+						tweets = get_tweets(username, until=date, private=private, headers_file=args.headers_file, input_headers=args.input_headers)
+				except:
+					failed = True
 				if not tweets:
 					failed = True
 			if failed:
 				print("no tweets found")
+				break
 			else:
 				if not args.reverse:
 					for tweet in reversed(tweets):
@@ -159,7 +182,7 @@ def update(args):
 						except:
 							print("failed tweet: " + tweet)
 					if tweets and tweets[0] and "user" in tweets[0] and tweets[0]["user"]:
-						with open(name + "/" + name + "_user_data.json", "w") as fdata:
+						with open(parsed_folder_name + name + "_user_data.json", "w") as fdata:
 							json.dump(tweets[0]["user"], fdata, indent=4)
 				else:
 					for tweet in tweets:
@@ -172,24 +195,32 @@ def update(args):
 						except:
 							print("failed tweet: " + tweet)
 
-		with open(name + "/" + name + "_data.json", "w") as f:
-			json.dump(a, f, indent=4)
+		if not failed:
+			with open(parsed_folder_name + name + "_data.json", "w") as f:
+				json.dump(a, f, indent=4)
+		else:
+			return
 
 		print("compiling html")
 
 		compile_args = argparse.Namespace()
 		compile_args.folder_name = [name]
 		compile_args.alert = False
-		compile_args.return_conversations = False
-		compile_html(compile_args)
+		if not args.return_conversations:
+			compile_args.return_conversations = False
+			compile_html(compile_args)
+		else:
+			compile_args.return_conversations = True
+			return compile_html(compile_args)
 
 def compile_html(args):
-	for name in args.folder_name:
+	for folder_name in args.folder_name:
+		parsed_folder_name, name = parse_folder_name(folder_name)
 		if args.alert:
 			print("----------------------")
 			print(name)
 			print("----------------------")
-		data_file = name + "/" + name + "_data.json"
+		data_file = parsed_folder_name + name + "_data.json"
 
 		print("reading json")
 		with open(data_file, 'r') as d:
@@ -274,7 +305,7 @@ def compile_html(args):
 
 		if not args.return_conversations:
 			print("making html")
-			with open(name + "/" + name + ".html", 'w') as out:
+			with open(parsed_folder_name + name + ".html", 'w') as out:
 				out.write(Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations.values(), pagination=None))
 		else:
 			return conversations
@@ -285,18 +316,17 @@ def server(args):
 		print("loading cached data")
 		cached_data = pickle.load(open(".cached_server_data", "rb"))
 
-	if cached_data:
-		print("loaded")
-		modified_html_files = cached_data["modified_html_files"]
-		conversations = cached_data["conversations"]
-	else:
+	conversations = {}
+	modified_html_files = {}
+
+	def refresh(conversations, modified_html_files):
 		compile_args = argparse.Namespace()
-		conversations = {}
 		compile_args.alert = True
-		modified_html_files = {}
 		print("processing html files")
-		for name in args.folder_name:
-			with open(name + "/" + name + ".html", 'r') as f:
+		for folder_name in args.folder_name:
+			parsed_folder_name, name = parse_folder_name(folder_name)
+
+			with open(parsed_folder_name + name + ".html", 'r') as f:
 				compile_args.folder_name = [name]
 				compile_args.return_conversations = True
 				conversations[name] = compile_html(compile_args)
@@ -306,14 +336,73 @@ def server(args):
 		pickle.dump({
 			"modified_html_files": modified_html_files,
 			"conversations": conversations
-		}, open(".cached_server_data", "wb"))
+		}, open(os.getcwd() + "/.cached_server_data", "wb"))
 
+	def update_request(conversations):
+		update_args = argparse.Namespace()
+		update_args.return_conversations = True
+		update_args.reverse = False
+		update_args.input_headers = False
+		update_args.headers_file = args.headers_file
+		for folder_name in args.folder_name:
+			parsed_folder_name, name = parse_folder_name(folder_name)
+			with open(parsed_folder_name + name + ".html", 'r') as f:
+				update_args.folder_name = [name]
+				update_data = update(update_args)
+				if update_data:
+					conversations[name] = update_data
+				else:
+					continue
+		print("caching data")
+		pickle.dump({
+			"modified_html_files": modified_html_files,
+			"conversations": conversations
+		}, open(os.getcwd() + "/.cached_server_data", "wb"))
+
+	if cached_data:
+		print("loaded")
+		modified_html_files = cached_data["modified_html_files"]
+		conversations = cached_data["conversations"]
+	else:
+		refresh(conversations, modified_html_files)
 
 	@route('/')
 	def index():
 		return template("""
 		<body style="margin: 0 auto; max-width:750px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
-		<h1 style="margin: 8px 0">twitter-archivist</h1>
+		<div style="display: flex; justify-content: space-between; align-items: center">
+			<h1 style="margin: 8px 0">twitter-archivist</h1>
+			<div>
+				<input type="submit" value="refresh" onclick="refresh()">
+				<input type="submit" value="update" onclick="update()">
+			</div>
+		</div>
+
+		<script type="text/javascript">
+			function refresh() {
+				var xhr = new XMLHttpRequest();
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState === 4) {
+						alert(xhr.response);
+					}
+				}
+				xhr.open('get', '/refresh', true);
+				xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+				xhr.send();
+			}
+
+			function update() {
+				var xhr = new XMLHttpRequest();
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState === 4) {
+						alert(xhr.response);
+					}
+				}
+				xhr.open('get', '/update', true);
+				xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+				xhr.send();
+			}
+		</script>
 		<hr>
 		<main>
 		  % for name in folder_names:
@@ -323,6 +412,16 @@ def server(args):
 		</main>
 		</body>
 		""", folder_names=args.folder_name)
+
+	@route('/refresh')
+	def index():
+		refresh(conversations, modified_html_files)
+		return "refreshed"
+
+	@route('/update')
+	def index():
+		update_request(conversations)
+		return "updated"
 
 	@route("/accounts/<name>/<filepath:re:.*\.json>")
 	def server_static(name, filepath):
@@ -415,6 +514,7 @@ update_parser = subparsers.add_parser("update")
 update_parser.add_argument("folder_name", nargs="+", type=str)
 update_parser.add_argument('--reverse', dest='reverse', action='store_true')
 update_parser.add_argument('--headers-file', default=None, type=str)
+update_parser.set_defaults(return_conversations=False)
 update_parser.set_defaults(reverse=False)
 update_parser.set_defaults(func=update)
 
@@ -430,6 +530,7 @@ server_parser.add_argument('--pagination', default=0, dest='pagination', type=in
 server_parser.add_argument('--port', default=8000, dest='port', type=int)
 server_parser.add_argument('--ip', default="localhost", dest='ip', type=str)
 server_parser.add_argument('--cache', dest='cache', action='store_true')
+server_parser.add_argument('--headers-file', default=None, type=str)
 server_parser.set_defaults(cache=False)
 server_parser.set_defaults(func=server)
 
