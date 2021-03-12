@@ -7,8 +7,6 @@
 <style>
 .container {
 	display: flex;
-	max-height: 351px;
-    ## height:300px;
     width: fit-content;
 	padding-top: 8px;
     overflow: scroll
