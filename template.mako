@@ -138,11 +138,11 @@ main {
 	<hr style="margin-top: 0">
 	<div id="input-container">
 		<div>
-			<input type="checkbox" id="checkbox1" class="checkbox" checked>hide initiating replies</input>
-			<input type="checkbox" id="checkbox2" class="checkbox" checked>hide all replies</input>
+			<input type="checkbox" id="checkbox1" class="checkbox" checked>hide initiating replies
+			<input type="checkbox" id="checkbox2" class="checkbox" checked>hide all replies
 		</div>
 		<div>
-			<input type="checkbox" id="checkbox3" class="checkbox-other">reverse</input>
+			<input type="checkbox" id="checkbox3" class="checkbox-other">reverse
 			<select name="sort" id="sort" onchange="refresh_sort()">
 				<option value="date">date</option>
 				<option value="thread_size">thread size</option>

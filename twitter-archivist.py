@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import subprocess
 import argparse
 import sys
 from pathlib import Path
@@ -11,7 +10,6 @@ import urllib.request
 import urllib.error
 import re
 import snscrape.twitter as twitter
-import time
 import pickle
 from math import ceil
 from random import shuffle
@@ -21,7 +19,8 @@ from mako.template import Template
 from tqdm import tqdm
 from bottle import route, run, template, static_file, redirect
 
-import datetime
+
+# function from snscrape, originally
 def parse_datetime_arg(arg):
 	for format in (
 			"%Y-%m-%d %H:%M:%S %z",
@@ -46,6 +45,7 @@ def parse_datetime_arg(arg):
 		return d
 	raise argparse.ArgumentTypeError(f"Cannot parse {arg!r} into a datetime object")
 
+
 def parse_folder_name(folder_name):
 	if folder_name[-1] == "/":
 		folder_name = folder_name[0:-1]
@@ -57,6 +57,7 @@ def parse_folder_name(folder_name):
 		name = [s for s in parsed_folder_name.split("/") if s != ""][-1]
 
 	return parsed_folder_name, name
+
 
 def get_tweets(username, since=None, until=None, private=False, headers_file=None, input_headers=True):
 	if since:
@@ -82,9 +83,9 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 						break
 				text = '\n'.join(lines)
 				private_headers = json.loads(text)
-		if private and not private_headers:
-			print("private account with no headers given, skipping")
-			return
+			else:
+				print("private account with no headers given, skipping")
+				return
 		a = twitter.TwitterUserScraper(username, until=until, private_headers=private_headers).get_items()
 		i = 0
 		for i, tweet in enumerate(a, start=1):
@@ -233,19 +234,18 @@ def compile_html(args):
 
 		conversations = {}
 
-		linkpattern = re.compile(r'([A-Z]+)([0-9]+)')
 		print("processing data")
 		for d in tqdm(data):
-			content = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["renderedContent"])
-			other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9-]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', content)
+			content = re.sub(r"http(s)?://t.co/\S{10}", "", d["renderedContent"])
+			other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9-]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_+.~#?&/=]*\u2026?', content)
 			for l in other_l:
 				a = next((link for link in d["outlinks"] if l.replace("\u2026", "") in link), None)
 				if a:
 					content = content.replace(l, "<a href='" + a + "'>" + l.replace("\u2026", "...") + "</a>")
 			d["renderedContent"] = content.replace("\n", "<br>")
 			if d["quotedTweet"] != None:
-				qcontent = re.sub(r"http(s)?:\/\/t.co\/\S{10}", "", d["quotedTweet"]["renderedContent"])
-				other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9-]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_\+.~#?&\/=]*\u2026?', qcontent)
+				qcontent = re.sub(r"http(s)?://t.co/\S{10}", "", d["quotedTweet"]["renderedContent"])
+				other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9-]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_+.~#?&/=]*\u2026?', qcontent)
 				for l in other_l:
 					a = next((link for link in d["quotedTweet"]["outlinks"] if l.replace("\u2026", "") in link), None)
 					if a != None:
@@ -309,7 +309,7 @@ def compile_html(args):
 			with open(parsed_folder_name + name + ".html", 'w') as out:
 				out.write(Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations.values(), pagination=None))
 		else:
-			return conversations
+			return conversations, len(data), data[0]["date"]
 
 def server(args):
 	cached_data = {}
@@ -318,6 +318,8 @@ def server(args):
 		cached_data = pickle.load(open(".cached_server_data", "rb"))
 
 	conversations = {}
+	latest_dates = {}
+	tweet_amount = {}
 	modified_html_files = {}
 
 	def refresh(conversations, modified_html_files):
@@ -330,7 +332,7 @@ def server(args):
 			with open(parsed_folder_name + name + ".html", 'r') as f:
 				compile_args.folder_name = [name]
 				compile_args.return_conversations = True
-				conversations[name] = compile_html(compile_args)
+				conversations[name], tweet_amount[name], latest_dates[name] = compile_html(compile_args)
 				html = f.read()
 			modified_html_files[name] = re.sub(r"(?<=img src=\")photos", "/accounts/" + name + "/photos", html)
 		print("caching data")
@@ -351,7 +353,7 @@ def server(args):
 				update_args.folder_name = [name]
 				update_data = update(update_args)
 				if update_data:
-					conversations[name] = update_data
+					conversations[name], tweet_amount[name], latest_dates[name] = update_data
 				else:
 					continue
 		print("caching data")
@@ -374,11 +376,10 @@ def server(args):
 		folder_names = []
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
-			# technically not the latest tweet but close enough (latest tweet in latest conversation)
 			try:
-				updated[name] = datetime.datetime.strptime(list(conversations[name].values())[0][-1]["date"], "%Y-%m-%dT%H:%M:%S+00:00").strftime("%A %m/%d/%Y at %-I:%M %p")
+				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%dT%H:%M:%S+00:00").strftime("%A %m/%d/%Y at %-I:%M %p")
 			except:
-				updated[name] = datetime.datetime.strptime(list(conversations[name].values())[0][-1]["date"], "%Y-%m-%d %H:%M:%S +0000").strftime("%A %m/%d/%Y at %-I:%M %p")
+				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%d %H:%M:%S +0000").strftime("%A %m/%d/%Y at %-I:%M %p")
 			folder_names.append((parsed_folder_name, name))
 		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
 		# 		account_info[name] = json.loads(r.read())
@@ -439,13 +440,13 @@ def server(args):
 		</script>
 		<hr style="margin-top: 0">
 		<main>
-		  % for parsed_folder_name, name in folder_names:
-		  <a href="/accounts/{{name}}">{{name}}</a> <i style="color: grey">{{updated[name]}}</i><br>
-		  <hr>
-		  % end
+		% for parsed_folder_name, name in folder_names:
+		<a href="/accounts/{{name}}" style="text-decoration: none">{{name}}</a> <i style="color: grey">· {{updated[name]}} · {{tweet_amount[name]}} tweets</i><br>
+		<hr>
+		% end
 		</main>
 		</body>
-		""", folder_names=folder_names, updated=updated)
+		""", folder_names=folder_names, updated=updated, tweet_amount=tweet_amount)
 
 	@route('/refresh')
 	def index():
@@ -457,10 +458,12 @@ def server(args):
 		update_request(conversations)
 		return "updated"
 
+	# noinspection PyUnresolvedReferences
 	@route("/accounts/<name>/<filepath:re:.*\.json>")
 	def server_static(name, filepath):
 		return static_file(name + "/" + filepath, root=os.getcwd())
 
+	# noinspection PyUnresolvedReferences
 	@route('/accounts/<name>/photos/<filepath:path>')
 	@route('/accounts/<name>/<page:int>/photos/<filepath:path>')
 	@route('/accounts/<name>/<page:int>/<sort>/photos/<filepath:path>')
@@ -478,6 +481,7 @@ def server(args):
 			redirect("/accounts/" + name + "/1")
 
 	if args.pagination:
+		# noinspection PyUnresolvedReferences
 		@route('/accounts/<name>/<page:int>')
 		@route('/accounts/<name>/<page:int>/<sort>')
 		@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>')
