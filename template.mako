@@ -6,29 +6,30 @@
 </head>
 <style>
 .container {
-	display: flex;
-    width: fit-content;
+    white-space: nowrap;
+    width: 100%;
 	padding-top: 8px;
     overflow: scroll
 }
-.container>.media {
+.media {
+    max-height: 351px;
+    width: auto;
+    height: auto;
     border: 1px solid lightgrey;
 }
+.container>.media {
+    height: 351px;
+}
 .container>.media:nth-child(1) {
-    border: 1px solid lightgrey;
     border-radius: 7px 0 0 7px;
 }
 .container>.media:nth-last-child(1) {
-    border: 1px solid lightgrey;
     border-radius: 0 7px 7px 0;
 }
 .container>.media:only-child {
-    border: 1px solid lightgrey;
+    height: auto !important;
     border-radius: 7px !important;
-}
-.media {
-    height: 351px;
-    width: auto
+    max-width: 99%;
 }
 a {
 	text-decoration: none;
@@ -126,24 +127,22 @@ main {
 			<div class="separator">· · ·</div>
 			<div class="tweet-text">${d["renderedContent"]}</div>
 			%if not d["media"] is None:
-            <div style="overflow: scroll; height: fit-content">
-                <div class="container">
-                    %for i in d["media"]:
-                    %if i["type"] == "photo":
-                    <img src="${i["fullUrl"]}" class="media">
-                    %endif
-                    %if i["type"] == "video":
-                    <video controls class="media">
-                        <source src="${i["variants"][0]["url"]}">
-                    </video>
-                    %endif
-                    %if i["type"] == "gif":
-                    <video loop autoplay class="media">
-                        <source src="${i["variants"][0]["url"]}">
-                    </video>
-                    %endif
-                    %endfor
-                </div>
+            <div class="container">
+                %for i in d["media"]:
+                %if i["type"] == "photo":
+                <img src="${i["fullUrl"]}" class="media">
+                %endif
+                %if i["type"] == "video":
+                <video controls class="media">
+                    <source src="${i["variants"][0]["url"]}">
+                </video>
+                %endif
+                %if i["type"] == "gif":
+                <video loop autoplay class="media">
+                    <source src="${i["variants"][0]["url"]}">
+                </video>
+                %endif
+                %endfor
             </div>
 			%endif
 			%if not d["quotedTweet"] is None:
@@ -359,6 +358,15 @@ document.querySelectorAll(".tweet-text").forEach(div => {
         }
     }
 })
+
+Array.from(document.querySelectorAll(".container"))
+        .filter(container => container.children.length === 1)
+        .forEach(container => {
+            //container.children[0].style.maxHeight = "100%";
+            //container.children[0].style.maxWidth = "100%";
+            //container.children[0].style.height = "auto";
+            //container.children[0].style.width = "auto";
+        })
 
 document.querySelector("#loading").style.display = "none";
 document.querySelector("main").style.display = "flex";
