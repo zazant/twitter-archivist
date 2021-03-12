@@ -128,7 +128,7 @@ main {
 			<div class="separator">· · ·</div>
 			<div class="tweet-text">${d["renderedContent"]}</div>
 			%if not d["media"] is None:
-            <div style="overflow: scroll">
+            <div style="overflow: scroll; height: fit-content">
                 <div class="container">
                     %for i in d["media"]:
                     %if i["type"] == "photo":
