@@ -13,19 +13,18 @@
     overflow: scroll
 }
 .container>.media {
-    ## border-top: 1px dashed grey;
-    ## border-bottom: 1px dashed grey
+    border: 1px solid lightgrey;
 }
 .container>.media:nth-child(1) {
-    ## border-left: 1px dashed grey;
+    border: 1px solid lightgrey;
     border-radius: 7px 0 0 7px;
 }
 .container>.media:nth-last-child(1) {
-    ## border-right: 1px dashed grey;
+    border: 1px solid lightgrey;
     border-radius: 0 7px 7px 0;
 }
 .container>.media:only-child {
-    ## border: 1px dashed grey;
+    border: 1px solid lightgrey;
     border-radius: 7px !important;
 }
 .media {
