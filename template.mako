@@ -9,6 +9,7 @@
 	display: flex;
 	max-height: 351px;
     ## height:300px;
+    width: fit-content;
 	padding-top: 8px;
     overflow: scroll
 }
@@ -28,7 +29,7 @@
     border-radius: 7px !important;
 }
 .media {
-    max-height: 351px;
+    height: 351px;
     width: auto
 }
 a {
@@ -127,23 +128,25 @@ main {
 			<div class="separator">· · ·</div>
 			<div class="tweet-text">${d["renderedContent"]}</div>
 			%if not d["media"] is None:
-			<div class="container">
-				%for i in d["media"]:
-				%if i["type"] == "photo":
-                <img src="${i["fullUrl"]}" class="media">
-				%endif
-				%if i["type"] == "video":
-                <video controls class="media">
-                    <source src="${i["variants"][0]["url"]}">
-                </video>
-				%endif
-				%if i["type"] == "gif":
-                <video loop autoplay class="media">
-                    <source src="${i["variants"][0]["url"]}">
-                </video>
-				%endif
-				%endfor
-			</div>
+            <div style="overflow: scroll">
+                <div class="container">
+                    %for i in d["media"]:
+                    %if i["type"] == "photo":
+                    <img src="${i["fullUrl"]}" class="media">
+                    %endif
+                    %if i["type"] == "video":
+                    <video controls class="media">
+                        <source src="${i["variants"][0]["url"]}">
+                    </video>
+                    %endif
+                    %if i["type"] == "gif":
+                    <video loop autoplay class="media">
+                        <source src="${i["variants"][0]["url"]}">
+                    </video>
+                    %endif
+                    %endfor
+                </div>
+            </div>
 			%endif
 			%if not d["quotedTweet"] is None:
 			<div class="quoted-tweet">
