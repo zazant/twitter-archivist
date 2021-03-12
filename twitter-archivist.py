@@ -381,6 +381,7 @@ def server(args):
 			except:
 				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%d %H:%M:%S +0000").strftime("%A %m/%d/%Y at %-I:%M %p")
 			folder_names.append((parsed_folder_name, name))
+		folder_names = sorted(folder_names, key=lambda x: datetime.datetime.strptime(updated[x[1]], "%A %m/%d/%Y at %I:%M %p"), reverse=True)
 		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
 		# 		account_info[name] = json.loads(r.read())
 		return template("""
