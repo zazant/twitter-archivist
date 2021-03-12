@@ -384,7 +384,7 @@ def server(args):
 		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
 		# 		account_info[name] = json.loads(r.read())
 		return template("""
-		<body style="margin: 0 auto; max-width:750px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
+		<body style="margin: 0 auto; max-width:624px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
 		<div style="display: flex; justify-content: space-between; align-items: center">
 			<h1 style="margin: 8px 0">twitter-archivist</h1>
 			<div style="color: grey">
@@ -441,8 +441,9 @@ def server(args):
 		<hr style="margin-top: 0">
 		<main>
 		% for parsed_folder_name, name in folder_names:
+		<div style="padding: 10px;margin: 10px 5px; border-radius: 5px; box-shadow: 0px 0.7px 1px 0.8px lightgray;">
 		<a href="/accounts/{{name}}" style="text-decoration: none">{{name}}</a> <i style="color: grey">· {{updated[name]}} · {{tweet_amount[name]}} tweets</i><br>
-		<hr>
+		</div>
 		% end
 		</main>
 		</body>
