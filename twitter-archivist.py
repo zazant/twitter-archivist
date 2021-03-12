@@ -387,17 +387,27 @@ def server(args):
 		<div style="display: flex; justify-content: space-between; align-items: center">
 			<h1 style="margin: 8px 0">twitter-archivist</h1>
 			<div style="color: grey">
-				<a style="cursor: pointer" onclick="refresh()">refresh</a> · 
-				<a style="cursor: pointer" onclick="update()">update</a>
+				<a style="cursor: pointer" onclick="refresh()" id="refresh">refresh</a> · 
+				<a style="cursor: pointer" onclick="update()" id="update">update</a>
 			</div>
 		</div>
 
 		<script type="text/javascript">
 			function refresh() {
+				document.querySelector("#refresh").innerText = "."
+				setInterval(function() {
+					if (document.querySelector("#refresh").innerText === ".")
+						document.querySelector("#refresh").innerText = ".."
+					else if (document.querySelector("#refresh").innerText === "..")
+						document.querySelector("#refresh").innerText = "..."
+					else
+						document.querySelector("#refresh").innerText = "."
+				}, 500)
 				var xhr = new XMLHttpRequest();
 				xhr.onreadystatechange = function () {
 					if (xhr.readyState === 4) {
-						alert(xhr.response);
+						window.location.reload(false);
+						//alert(xhr.response);
 					}
 				}
 				xhr.open('get', '/refresh', true);
@@ -406,10 +416,20 @@ def server(args):
 			}
 
 			function update() {
+				document.querySelector("#update").innerText = "."
+				setInterval(function() {
+					if (document.querySelector("#update").innerText === ".")
+						document.querySelector("#update").innerText = ".."
+					else if (document.querySelector("#update").innerText === "..")
+						document.querySelector("#update").innerText = "..."
+					else
+						document.querySelector("#update").innerText = "."
+				}, 500)
 				var xhr = new XMLHttpRequest();
 				xhr.onreadystatechange = function () {
 					if (xhr.readyState === 4) {
-						alert(xhr.response);
+						window.location.reload(false);
+						//alert(xhr.response);
 					}
 				}
 				xhr.open('get', '/update', true);
