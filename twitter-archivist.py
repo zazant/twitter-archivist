@@ -375,7 +375,10 @@ def server(args):
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
 			# technically not the latest tweet but close enough (latest tweet in latest conversation)
-			updated[name] = datetime.datetime.strptime(list(conversations[name].values())[0][-1]["date"], "%Y-%m-%dT%H:%M:%S+00:00").strftime("%A %m/%d/%Y at %-I:%M %p")
+			try:
+				updated[name] = datetime.datetime.strptime(list(conversations[name].values())[0][-1]["date"], "%Y-%m-%dT%H:%M:%S+00:00").strftime("%A %m/%d/%Y at %-I:%M %p")
+			except:
+				updated[name] = datetime.datetime.strptime(list(conversations[name].values())[0][-1]["date"], "%Y-%m-%d %H:%M:%S +0000").strftime("%A %m/%d/%Y at %-I:%M %p")
 			folder_names.append((parsed_folder_name, name))
 		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
 		# 		account_info[name] = json.loads(r.read())
