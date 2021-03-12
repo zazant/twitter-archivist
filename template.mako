@@ -46,7 +46,7 @@
 <style>
 .container {
 	display: flex;
-	max-height: 500px;
+	max-height: 351px;
     ## height:300px;
 	padding-top: 8px;
     overflow: scroll
@@ -68,7 +68,7 @@
     border-radius: 7px !important;
 }
 .media {
-    height: 300px;
+    max-height: 351px;
     width: auto
 }
 a {
@@ -79,7 +79,7 @@ a {
 	font-family: -apple-system, system-ui, "Segoe UI", Roboto, Helvetica, A;
 }
 body {
-	max-width: 750px;
+	max-width: 624px;
 	margin: 0 auto;
 }
 h1 {
@@ -101,14 +101,18 @@ h1 {
   color: grey
 }
 .quoted-tweet {
-	margin: 0.5em 20px;
-	padding: 0.5em;
-	border-top: 1px dashed grey;
+	margin: 0.5em 20px 0;
+	## padding: 0.5em;
+    padding: 10px;
+    border-top: 1px dashed grey;
 	border-bottom: 1px dashed grey;
     overflow: scroll
 }
 .conversation {
-
+    padding: 10px;
+    margin: 5px;
+    border-radius: 5px;
+    box-shadow: 0px 0.7px 1px 0.8px lightgray;
 }
 /*.tweet {
 	margin: 0.5em 0;
@@ -207,11 +211,12 @@ main {
 			%endif
 		</div>
 	%endfor
-	<hr>
+## 	<hr>
 	</div>
 	%endfor
 	</main>
     %if pagination:
+        <hr>
         <div style="display: flex; justify-content: space-between">
         %if pagination['page'] - 1 > 0:
                 <a href="/accounts/${name}/${max(pagination['page'] - 1, 1)}/${pagination['sort']}/${pagination['reverse']}">previous</a>
