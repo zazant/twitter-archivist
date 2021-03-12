@@ -377,9 +377,9 @@ def server(args):
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
 			try:
-				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%dT%H:%M:%S+00:00").strftime("%A %m/%d/%Y at %-I:%M %p")
+				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%dT%H:%M:%S+00:00").replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")
 			except:
-				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%d %H:%M:%S +0000").strftime("%A %m/%d/%Y at %-I:%M %p")
+				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%d %H:%M:%S +0000").replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")
 			folder_names.append((parsed_folder_name, name))
 		folder_names = sorted(folder_names, key=lambda x: datetime.datetime.strptime(updated[x[1]], "%A %m/%d/%Y at %I:%M %p"), reverse=True)
 		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
