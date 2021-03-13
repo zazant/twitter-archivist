@@ -17,7 +17,7 @@ import datetime
 
 from mako.template import Template
 from tqdm import tqdm
-from bottle import route, run, template, static_file, redirect
+from bottle import route, run, template, static_file, redirect, request
 
 
 # function from snscrape, originally
@@ -206,7 +206,7 @@ def update(args):
 		print("compiling html")
 
 		compile_args = argparse.Namespace()
-		compile_args.folder_name = [name]
+		compile_args.folder_name = [folder_name]
 		compile_args.alert = False
 		if not args.return_conversations:
 			compile_args.return_conversations = False
@@ -250,7 +250,7 @@ def compile_html(args):
 					a = next((link for link in d["quotedTweet"]["outlinks"] if l.replace("\u2026", "") in link), None)
 					if a != None:
 						qcontent = qcontent.replace(l, "<a href='" + a + "'>" + l.replace("\u2026", "...") + "</a>")
-				d["quotedTweet"]["renderedContent"] = qcontent
+				d["quotedTweet"]["renderedContent"] = qcontent.replace("\n", "<br>")
 			if d["conversationId"] not in conversations:
 				conversations[d["conversationId"]] = [d]
 			else:
@@ -258,41 +258,41 @@ def compile_html(args):
 			if d["media"]:
 				for i in d["media"]:
 					if i["type"] == "photo":
-						f = name + "/photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
-						if not path.exists(f):
-							urls.append((i["fullUrl"], f))
-						i["fullUrl"] = f.split("/", 1)[1]
+						f = "photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
+						if not path.exists(parsed_folder_name + f):
+							urls.append((i["fullUrl"], parsed_folder_name + f))
+						i["fullUrl"] = f
 					if i["type"] == "video":
 						url = next(video for video in i["variants"] if video["bitrate"])["url"]
-						f = name + "/photos/" + url.split('/')[-1].split('?')[0]
-						if not path.exists(f):
-							urls.append((url, f))
-						i["variants"][0]["url"] = f.split("/", 1)[1]
+						f = "photos/" + url.split('/')[-1].split('?')[0]
+						if not path.exists(parsed_folder_name + f):
+							urls.append((url, parsed_folder_name + f))
+						i["variants"][0]["url"] = f
 					if i["type"] == "gif":
 						url = next(video for video in i["variants"])["url"]
-						f = name + "/photos/" + url.split('/')[-1]
-						if not path.exists(f):
-							urls.append((url, f))
-						i["variants"][0]["url"] = f.split("/", 1)[1]
+						f = "photos/" + url.split('/')[-1]
+						if not path.exists(parsed_folder_name + f):
+							urls.append((url, parsed_folder_name + f))
+						i["variants"][0]["url"] = f
 			if d["quotedTweet"] and d["quotedTweet"]["media"]:
 				for i in d["quotedTweet"]["media"]:
 					if i["type"] == "photo":
-						f = name + "/photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
-						if not path.exists(f):
-							urls.append((i["fullUrl"], f))
-						i["fullUrl"] = f.split("/", 1)[1]
+						f = "photos/" + i["fullUrl"].split('/')[-1].split('&')[0].replace("?format=",".")
+						if not path.exists(parsed_folder_name + f):
+							urls.append((i["fullUrl"], parsed_folder_name + f))
+						i["fullUrl"] = f
 					if i["type"] == "video":
 						url = next(video for video in i["variants"] if video["bitrate"])["url"]
-						f = name + "/photos/" + url.split('/')[-1].split('?')[0]
-						if not path.exists(f):
-							urls.append((url, f))
-						i["variants"][0]["url"] = f.split("/", 1)[1]
+						f = "photos/" + url.split('/')[-1].split('?')[0]
+						if not path.exists(parsed_folder_name + f):
+							urls.append((url, parsed_folder_name + f))
+						i["variants"][0]["url"] = f
 					if i["type"] == "gif":
 						url = next(video for video in i["variants"])["url"]
-						f = name + "/photos/" + url.split('/')[-1]
-						if not path.exists(f):
-							urls.append((url, f))
-						i["variants"][0]["url"] = f.split("/", 1)[1]
+						f = "photos/" + url.split('/')[-1]
+						if not path.exists(parsed_folder_name + f):
+							urls.append((url, parsed_folder_name + f))
+						i["variants"][0]["url"] = f
 
 		if urls:
 			print("downloading images")
@@ -321,6 +321,7 @@ def server(args):
 	latest_dates = {}
 	tweet_amount = {}
 	modified_html_files = {}
+	names = {}
 
 	def refresh(conversations, modified_html_files):
 		compile_args = argparse.Namespace()
@@ -328,9 +329,9 @@ def server(args):
 		print("processing html files")
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
-
+			names[name] = parsed_folder_name
 			with open(parsed_folder_name + name + ".html", 'r') as f:
-				compile_args.folder_name = [name]
+				compile_args.folder_name = [folder_name]
 				compile_args.return_conversations = True
 				conversations[name], tweet_amount[name], latest_dates[name] = compile_html(compile_args)
 				html = f.read()
@@ -338,7 +339,9 @@ def server(args):
 		print("caching data")
 		pickle.dump({
 			"modified_html_files": modified_html_files,
-			"conversations": conversations
+			"conversations": conversations,
+			"tweet_amount": tweet_amount,
+			"latest_dates": latest_dates
 		}, open(os.getcwd() + "/.cached_server_data", "wb"))
 
 	def update_request(conversations):
@@ -350,7 +353,7 @@ def server(args):
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
 			with open(parsed_folder_name + name + ".html", 'r') as f:
-				update_args.folder_name = [name]
+				update_args.folder_name = [folder_name]
 				update_data = update(update_args)
 				if update_data:
 					conversations[name], tweet_amount[name], latest_dates[name] = update_data
@@ -366,6 +369,11 @@ def server(args):
 		print("loaded")
 		modified_html_files = cached_data["modified_html_files"]
 		conversations = cached_data["conversations"]
+		tweet_amount = cached_data["tweet_amount"]
+		latest_dates = cached_data["latest_dates"]
+		for folder_name in args.folder_name:
+			parsed_folder_name, name = parse_folder_name(folder_name)
+			names[name] = parsed_folder_name
 	else:
 		refresh(conversations, modified_html_files)
 
@@ -376,14 +384,15 @@ def server(args):
 		folder_names = []
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
-			try:
-				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%dT%H:%M:%S+00:00").replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")
-			except:
-				updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%d %H:%M:%S +0000").replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")
+			updated[name] = datetime.datetime.strptime(latest_dates[name], "%Y-%m-%dT%H:%M:%S+00:00")\
+				.replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")
 			folder_names.append((parsed_folder_name, name))
 		folder_names = sorted(folder_names, key=lambda x: datetime.datetime.strptime(updated[x[1]], "%A %m/%d/%Y at %I:%M %p"), reverse=True)
 		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
 		# 		account_info[name] = json.loads(r.read())
+		for parsed_folder_name, name in folder_names:
+			updated[name] = updated[name].replace(datetime.datetime.now().strftime("%A %m/%d/%Y"), "Today")\
+				.replace((datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%A %m/%d/%Y"), "Yesterday")
 		return template("""
 		<body style="margin: 0 auto; max-width:624px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
 		<div style="display: flex; justify-content: space-between; align-items: center">
@@ -450,6 +459,8 @@ def server(args):
 		</body>
 		""", folder_names=folder_names, updated=updated, tweet_amount=tweet_amount)
 
+
+
 	@route('/refresh')
 	def index():
 		refresh(conversations, modified_html_files)
@@ -463,17 +474,13 @@ def server(args):
 	# noinspection PyUnresolvedReferences
 	@route("/accounts/<name>/<filepath:re:.*\.json>")
 	def server_static(name, filepath):
-		return static_file(name + "/" + filepath, root=os.getcwd())
+		return static_file(names[name] + filepath, root="/")
 
 	# noinspection PyUnresolvedReferences
 	@route('/accounts/<name>/photos/<filepath:path>')
 	@route('/accounts/<name>/<page:int>/photos/<filepath:path>')
-	@route('/accounts/<name>/<page:int>/<sort>/photos/<filepath:path>')
-	@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/photos/<filepath:path>')
-	@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>/photos/<filepath:path>')
-	@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>/<initiating_replies:int>/photos/<filepath:path>')
-	def server_static(name, filepath, page=1, sort="date", reverse=0, all_replies=1, initiating_replies=1):
-		return static_file(name + "/photos/" + filepath, root=os.getcwd())
+	def server_static(name, filepath):
+		return static_file(names[name] + "photos/" + filepath, root="/")
 
 	@route('/accounts/<name>')
 	def index(name):
@@ -485,11 +492,11 @@ def server(args):
 	if args.pagination:
 		# noinspection PyUnresolvedReferences
 		@route('/accounts/<name>/<page:int>')
-		@route('/accounts/<name>/<page:int>/<sort>')
-		@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>')
-		@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>')
-		@route('/accounts/<name>/<page:int>/<sort>/<reverse:int>/<all_replies:int>/<initiating_replies:int>')
-		def index(name, page, sort="date", reverse=0, all_replies=1, initiating_replies=1):
+		def index(name, page):
+			sort = request.query["sort"] if "sort" in request.query else "date"
+			reverse = int(request.query["reverse"]) if "reverse" in request.query else 0
+			all_replies = int(request.query["all-replies"]) if "all-replies" in request.query else 1
+			initiating_replies = int(request.query["initiating-replies"]) if "initiating-replies" in request.query else 1
 			pagination = {
 				"results": args.pagination,
 				"page": page,
@@ -527,7 +534,7 @@ def server(args):
 				if sort == "thread-size":
 					conversations_page = sorted(list(filtered_items), key=lambda x: len(x),
 												reverse=not bool(reverse))[start_index:end_index]
-				if sort == "likes":
+				if sort == "like-amount":
 					conversations_page = sorted(list(filtered_items), key=lambda x: x[0]["likeCount"],
 												reverse=not bool(reverse))[start_index:end_index]
 				if sort == "random":

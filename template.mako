@@ -179,12 +179,12 @@ main {
         <hr>
         <div style="display: flex; justify-content: space-between">
         %if pagination['page'] - 1 > 0:
-                <a href="/accounts/${name}/${max(pagination['page'] - 1, 1)}/${pagination['sort']}/${pagination['reverse']}">previous</a>
+                <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${max(pagination['page'] - 1, 1)}'+window.location.search;">previous</a>
         %else:
             <div style="color: grey">previous</div>
         %endif
         %if pagination['page'] + 1 <= pagination['pages']:
-            <a href="/accounts/${name}/${min(pagination['page'] + 1, pagination['pages'])}/${pagination['sort']}/${pagination['reverse']}">next</a>
+            <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${min(pagination['page'] + 1, pagination['pages'])}'+window.location.search;">next</a>
         %else:
             <div style="color: grey">next</div>
         %endif
@@ -195,14 +195,14 @@ main {
             %if i != 1:
                 ·
             %endif
-            <a href="/accounts/${name}/${i}/${pagination['sort']}/${pagination['reverse']}">${i}</a>
+            <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${i}'+window.location.search;">${i}</a>
         %endfor
         %if pagination["page"] != 1:
              ·
         %endif
         ${pagination["page"]}
         %for i in range(pagination["page"] + 1, pagination["pages"] + 1):
-             · <a href="/accounts/${name}/${i}/${pagination['sort']}/${pagination['reverse']}">${i}</a>
+             · <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${i}'+window.location.search;">${i}</a>
         %endfor
         </div>
     %endif
@@ -303,15 +303,21 @@ main {
         conversation.querySelector(".separator").style.display = "none";
     })
     function refresh_sort() {
-        reverse = document.querySelector("#checkbox3").checked ? 1 : 0
+        let reverse = document.querySelector("#checkbox3").checked ? 1 : 0
+        let url = new URL(window.location)
+        url.searchParams.set("reverse", reverse)
         if (document.querySelector("#sort").value == "date") {
-            window.location.href = "/accounts/${name}/${pagination['page']}/date/" + reverse
+            url.searchParams.set("sort", "date")
+            window.location.href = url
         } else if (document.querySelector("#sort").value == "thread_size") {
-            window.location.href = "/accounts/${name}/${pagination['page']}/thread-size/" + reverse
+            url.searchParams.set("sort", "thread-size")
+            window.location.href = url
         } else if (document.querySelector("#sort").value == "like_amount") {
-            window.location.href = "/accounts/${name}/${pagination['page']}/likes/" + reverse
+            url.searchParams.set("sort", "like-amount")
+            window.location.href = url
         } else {
-            window.location.href = "/accounts/${name}/${pagination['page']}/random/" + reverse
+            url.searchParams.set("sort", "random")
+            window.location.href = url
         }
     }
 
@@ -327,7 +333,14 @@ main {
             } else {
                 document.getElementById('checkbox1').disabled = false;
             }
-            window.location.href = "/accounts/${name}/${pagination['page']}/${pagination['sort']}/" + (checked3 ? 1 : 0) + "/" + (checked2 ? 1 : 0) + "/" + (checked1 ? 1 : 0)
+            let url = new URL(window.location)
+            if (checked3 || url.searchParams.has("reverse"))
+                url.searchParams.set("reverse", checked3 ? 1 : 0)
+            if (!checked2 || url.searchParams.has("all-replies"))
+                url.searchParams.set("all-replies", checked2 ? 1 : 0)
+            if (!checked1 || url.searchParams.has("initiating-replies"))
+                url.searchParams.set("initiating-replies", checked1 ? 1 : 0)
+            window.location.href = url
         })
     })
 
@@ -344,7 +357,7 @@ main {
         document.querySelector("#sort").value = "date";
     } else if ("${pagination["sort"]}" === "thread-size") {
         document.querySelector("#sort").value = "thread_size";
-    } else if ("${pagination["sort"]}" === "likes") {
+    } else if ("${pagination["sort"]}" === "like-amount") {
         document.querySelector("#sort").value = "like_amount";
     } else {
         document.querySelector("#sort").value = "random";
