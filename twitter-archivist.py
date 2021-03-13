@@ -14,11 +14,14 @@ import pickle
 from math import ceil
 from random import shuffle
 import datetime
+from shutil import copyfile
+import logging
 
 from mako.template import Template
 from tqdm import tqdm
 from bottle import route, run, template, static_file, redirect, request
 
+logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 
 # function from snscrape, originally
 def parse_datetime_arg(arg):
@@ -71,7 +74,7 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 					with open(headers_file, "r") as f:
 						private_headers = json.loads(f.read())
 				except:
-					print("headers_file opening failed")
+					logging.warning("headers_file opening failed")
 			elif input_headers:
 				print("paste headers object:")
 				lines = []
@@ -84,22 +87,22 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 				text = '\n'.join(lines)
 				private_headers = json.loads(text)
 			else:
-				print("private account with no headers given, skipping")
+				logging.warning("private account with no headers given, skipping")
 				return
 		a = twitter.TwitterUserScraper(username, until=until, private_headers=private_headers).get_items()
 		i = 0
 		for i, tweet in enumerate(a, start=1):
 			tweet_json = json.loads(tweet.json())
 			if since is not None and tweet.date < since:
-				print(f'Exiting due to reaching older results than {since.strftime("%Y-%m-%d")}')
+				logging.info(f'Exiting due to reaching older results than {since.strftime("%Y-%m-%d")}')
 				break
 			results.append(tweet_json)
 			if i % 100 == 0:
-				print(f'Scraping, {i} results so far')
-		print(f'Done, found {i} results')
+				logging.info(f'Scraping, {i} results so far')
+		logging.info(f'Done, found {i} results')
 		return results
 	except:
-		print("error in get_tweets")
+		logging.warning("error in get_tweets")
 		return results
 
 
@@ -110,7 +113,7 @@ def archive(args):
 	except FileNotFoundError:
 		sys.exit("error: parent directory not found")
 	except FileExistsError:
-		print("directory already exists, continuing")
+		logging.warning("directory already exists, continuing")
 	if Path(args.name + "/" + args.name + "_data.json").exists():
 		sys.exit("error: " + args.name + "_data.json already exists")
 	a = get_tweets(args.username, since=args.since, private=args.private, headers_file=args.headers_file)
@@ -131,12 +134,13 @@ def archive(args):
 	compile_args.return_conversations = False
 	compile_html(compile_args)
 
+
 def update(args):
 	for folder_name in args.folder_name:
 		parsed_folder_name, name = parse_folder_name(folder_name)
-		print("----------------------")
-		print(name)
-		print("----------------------")
+		logging.info("----------------------")
+		logging.info(name)
+		logging.info("----------------------")
 		if "input_headers" not in args:
 			args.input_headers = True
 		private = False
@@ -145,9 +149,10 @@ def update(args):
 				temp_user = json.loads(f.read())
 				if temp_user["protected"]:
 					private = True
-					print("protected user")
+					logging.info("protected user")
 		except:
 			private = False
+
 
 		failed = False
 		a = {}
@@ -161,7 +166,7 @@ def update(args):
 				else:
 					date = a[-1]["date"].split("T")[0]
 				username = a[0]["user"]["username"]
-				print("date: " + date)
+				logging.info("date: " + date)
 				try:
 					if not args.reverse:
 						tweets = get_tweets(username, since=date, private=private, headers_file=args.headers_file, input_headers=args.input_headers)
@@ -172,7 +177,7 @@ def update(args):
 				if not tweets:
 					failed = True
 			if failed:
-				print("no tweets found")
+				logging.warning("no tweets found")
 				break
 			else:
 				if not args.reverse:
@@ -180,9 +185,9 @@ def update(args):
 						try:
 							if not any(tweet["url"] == x["url"] for x in a):
 								a.insert(0, tweet)
-								print("added " + tweet["url"])
+								logging.info("added " + tweet["url"])
 						except:
-							print("failed tweet: " + tweet)
+							logging.warning("failed tweet: " + tweet)
 					if tweets and tweets[0] and "user" in tweets[0] and tweets[0]["user"]:
 						with open(parsed_folder_name + name + "_user_data.json", "w") as fdata:
 							json.dump(tweets[0]["user"], fdata, indent=4)
@@ -191,19 +196,31 @@ def update(args):
 						try:
 							if not any(tweet["url"] == x["url"] for x in a):
 								a.append(tweet)
-								print("added " + tweet["url"])
+								logging.info("added " + tweet["url"])
 							else:
-								print("skipping " + tweet["url"])
+								logging.info("skipping " + tweet["url"])
 						except:
-							print("failed tweet: " + tweet)
+							logging.warning("failed tweet: " + tweet)
 
 		if not failed:
+			try:
+				logging.info("making a backup file before update (" + name + "_data_backup.json)")
+				copyfile(parsed_folder_name + name + "_data.json", parsed_folder_name + name + "_data_backup.json")
+			except:
+				logging.warning("failed to make backup")
+
 			with open(parsed_folder_name + name + "_data.json", "w") as f:
 				json.dump(a, f, indent=4)
+
+			try:
+				logging.info("json dump successful, removing backup file")
+				os.remove(parsed_folder_name + name + "_data_backup.json")
+			except:
+				logging.warning("removing backup file failed")
 		else:
 			return
 
-		print("compiling html")
+		logging.info("compiling html")
 
 		compile_args = argparse.Namespace()
 		compile_args.folder_name = [folder_name]
@@ -215,16 +232,17 @@ def update(args):
 			compile_args.return_conversations = True
 			return compile_html(compile_args)
 
+
 def compile_html(args):
 	for folder_name in args.folder_name:
 		parsed_folder_name, name = parse_folder_name(folder_name)
 		if args.alert:
-			print("----------------------")
-			print(name)
-			print("----------------------")
+			logging.info("----------------------")
+			logging.info(name)
+			logging.info("----------------------")
 		data_file = parsed_folder_name + name + "_data.json"
 
-		print("reading json")
+		logging.info("reading json")
 		with open(data_file, 'r') as d:
 			data_raw = d.read()
 
@@ -234,7 +252,7 @@ def compile_html(args):
 
 		conversations = {}
 
-		print("processing data")
+		logging.info("processing data")
 		for d in tqdm(data):
 			content = re.sub(r"http(s)?://t.co/\S{10}", "", d["renderedContent"])
 			other_l = re.findall(r'[a-zA-Z0-9]*\.?[a-zA-Z0-9-]+\.[a-zA-Z]{1,3}\b[-a-zA-Z0-9()@:%_+.~#?&/=]*\u2026?', content)
@@ -295,26 +313,27 @@ def compile_html(args):
 						i["variants"][0]["url"] = f
 
 		if urls:
-			print("downloading images")
+			logging.info("downloading images")
 			t = tqdm(urls)
 			for d in t:
 				t.set_description(d[1])
 				try:
 					urllib.request.urlretrieve(d[0], d[1])
 				except urllib.error.HTTPError:
-					print(d[1] + " (" + d[0] + "): download failed")
+					logging.info(d[1] + " (" + d[0] + "): download failed")
 
 		if not args.return_conversations:
-			print("making html")
+			logging.info("making html")
 			with open(parsed_folder_name + name + ".html", 'w') as out:
 				out.write(Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations.values(), pagination=None))
 		else:
 			return conversations, len(data), data[0]["date"]
 
+
 def server(args):
 	cached_data = {}
 	if path.exists(".cached_server_data") and args.cache:
-		print("loading cached data")
+		logging.info("loading cached data")
 		cached_data = pickle.load(open(".cached_server_data", "rb"))
 
 	conversations = {}
@@ -326,7 +345,7 @@ def server(args):
 	def refresh(conversations, modified_html_files):
 		compile_args = argparse.Namespace()
 		compile_args.alert = True
-		print("processing html files")
+		logging.info("processing html files")
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
 			names[name] = parsed_folder_name
@@ -336,7 +355,7 @@ def server(args):
 				conversations[name], tweet_amount[name], latest_dates[name] = compile_html(compile_args)
 				html = f.read()
 			modified_html_files[name] = re.sub(r"(?<=img src=\")photos", "/accounts/" + name + "/photos", html)
-		print("caching data")
+		logging.info("caching data")
 		pickle.dump({
 			"modified_html_files": modified_html_files,
 			"conversations": conversations,
@@ -359,14 +378,14 @@ def server(args):
 					conversations[name], tweet_amount[name], latest_dates[name] = update_data
 				else:
 					continue
-		print("caching data")
+		logging.info("caching data")
 		pickle.dump({
 			"modified_html_files": modified_html_files,
 			"conversations": conversations
 		}, open(os.getcwd() + "/.cached_server_data", "wb"))
 
 	if cached_data:
-		print("loaded")
+		logging.info("loaded")
 		modified_html_files = cached_data["modified_html_files"]
 		conversations = cached_data["conversations"]
 		tweet_amount = cached_data["tweet_amount"]
@@ -544,6 +563,7 @@ def server(args):
 			return Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name=name, conversations=conversations_page, pagination=pagination)
 
 	run(host=args.ip, port=args.port)
+
 
 parser = argparse.ArgumentParser(description="Twitter account archiver.")
 subparsers = parser.add_subparsers(dest="mode", required=True, help="mode")
