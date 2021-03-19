@@ -74,18 +74,32 @@ h1 {
     border-radius: 5px;
     box-shadow: 0px 0.7px 1px 0.8px lightgray;
 }
+
+.outer-heading {
+    width: 100%;
+    text-align: center;
+    border-bottom: 1px dashed #000;
+    line-height: 0.1em;
+    margin: 15px 0;
+}
+
+.inner-heading {
+    background: white;
+    padding: 0 10px
+}
+
 /*.tweet {
 	margin: 0.5em 0;
 }*/
 .separator {
-	text-align: center;
-	color: grey;
-	height: 22px;
-	line-height: 22px;
+    text-align: center;
+    color: grey;
+    height: 22px;
+    line-height: 22px;
 }
 main {
-	display: flex;
-	flex-direction: column
+    display: flex;
+    flex-direction: column
 }
 #input-container {
 	display: flex;
@@ -96,8 +110,11 @@ main {
 	<div id="title-container">
 		<h1>${name}</h1>
 		<div id="title-container-links">
-			<a href="${name}_data.json">json</a>
-		</div>
+            %if not combined:
+             ·
+            <a href="${name}_data.json">json</a>
+            %endif
+        </div>
 	</div>
 	<hr style="margin-top: 0">
 	<div id="input-container">
@@ -120,26 +137,74 @@ main {
 		loading...
 	</div>
 	<main style="display: none">
+    <%
+        import datetime
+        today_shown = False
+        yesterday_shown = False
+        other_shown = False
+    %>
 	%for value in conversations:
-	<div class="conversation">
-	%for d in value:
-		<div title="${d["date"]} likes:${d["likeCount"]}" date="${d["date"]}" like-count="${d["likeCount"]}" class="tweet">
+    %if combined:
+        <%
+        calculated_name = next((combined_name[1] for combined_name in combined_names.values() if "user" in value[0] and combined_name[2] == value[0]["user"]["username"]), "none")
+
+        updated_date = datetime.datetime.strptime(value[0]["date"], "%Y-%m-%dT%H:%M:%S+00:00")\
+            .replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")
+        updated_date = updated_date.replace(datetime.datetime.now().strftime("%A %m/%d/%Y"), "Today")\
+            .replace((datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%A %m/%d/%Y"), "Yesterday").lower()
+
+        %>
+    %if pagination["sort"] == "date" and not pagination["reverse"] and not today_shown and "today" in updated_date:
+    <div class="outer-heading">
+        <span class="inner-heading">today</span>
+    </div>
+    <% today_shown = True %>
+    %endif
+    %if pagination["sort"] == "date" and not pagination["reverse"] and not yesterday_shown and "yesterday" in updated_date:
+    <div class="outer-heading">
+        <span class="inner-heading">yesterday</span>
+    </div>
+    <% yesterday_shown = True %>
+    %endif
+    %if pagination["sort"] == "date" and not pagination["reverse"] and not other_shown and "today" not in updated_date and "yesterday" not in updated_date:
+    <div class="outer-heading">
+        <span class="inner-heading">other dates</span>
+    </div>
+    <% other_shown = True %>
+    %endif
+            <div style="display: flex; justify-content: space-between; color: lightgrey; padding: 4px 8px 2px; margin: 0 5px 2px; border-bottom: 1px dashed lightgrey">
+                <div>${calculated_name}</div>
+                <i>${updated_date.replace("today at", "").replace("yesterday at", "")}</i>
+            </div>
+    %endif
+    <div class="conversation">
+        %if combined:
+        %endif
+        <%
+        def fixed_tag(tag):
+            if combined:
+                return "/accounts/" + calculated_name + "/" + tag
+            else:
+                return tag
+    %>
+    %for d in value:
+		<div title="${datetime.datetime.strptime(d["date"], "%Y-%m-%dT%H:%M:%S+00:00").replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")} likes:${d["likeCount"]}" date="${d["date"]}" like-count="${d["likeCount"]}" class="tweet">
 			<div class="separator">· · ·</div>
 			<div class="tweet-text">${d["renderedContent"]}</div>
 			%if not d["media"] is None:
             <div class="container">
                 %for i in d["media"]:
                 %if i["type"] == "photo":
-                <img src="${i["fullUrl"]}" class="media">
+                <img src="${fixed_tag(i['fullUrl'])}" class="media">
                 %endif
                 %if i["type"] == "video":
                 <video controls class="media">
-                    <source src="${i["variants"][0]["url"]}">
+                    <source src="${fixed_tag(i["variants"][0]["url"])}">
                 </video>
                 %endif
                 %if i["type"] == "gif":
                 <video loop autoplay class="media">
-                    <source src="${i["variants"][0]["url"]}">
+                    <source src="${fixed_tag(i["variants"][0]["url"])}">
                 </video>
                 %endif
                 %endfor
@@ -152,16 +217,16 @@ main {
 				<div class="container">
 					%for i in d["quotedTweet"]["media"]:
 					%if i["type"] == "photo":
-                    <img src="${i["fullUrl"]}" class="media">
+                    <img src="${fixed_tag(i["fullUrl"])}" class="media">
 					%endif
 					%if i["type"] == "video":
                     <video controls class="media">
-                        <source src="${i["variants"][0]["url"]}">
+                        <source src="${fixed_tag(i["variants"][0]["url"])}">
                     </video>
 					%endif
 					%if i["type"] == "gif":
                     <video loop autoplay class="media">
-                        <source src="${i["variants"][0]["url"]}">
+                        <source src="${fixed_tag(i["variants"][0]["url"])}">
                     </video>
 					%endif
 					%endfor
@@ -179,12 +244,12 @@ main {
         <hr>
         <div style="display: flex; justify-content: space-between">
         %if pagination['page'] - 1 > 0:
-                <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${max(pagination['page'] - 1, 1)}'+window.location.search;">previous</a>
+	<a href="javascript:void(0)" onclick="window.location='${"/accounts/" if not combined else "/"}${name}/${max(pagination['page'] - 1, 1)}'+window.location.search;">previous</a>
         %else:
             <div style="color: grey">previous</div>
         %endif
         %if pagination['page'] + 1 <= pagination['pages']:
-            <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${min(pagination['page'] + 1, pagination['pages'])}'+window.location.search;">next</a>
+	<a href="javascript:void(0)" onclick="window.location='${"/accounts/" if not combined else "/"}${name}/${min(pagination['page'] + 1, pagination['pages'])}'+window.location.search;">next</a>
         %else:
             <div style="color: grey">next</div>
         %endif
@@ -195,14 +260,14 @@ main {
             %if i != 1:
                 ·
             %endif
-            <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${i}'+window.location.search;">${i}</a>
+	    <a href="javascript:void(0)" onclick="window.location='${"/accounts/" if not combined else "/"}${name}/${i}'+window.location.search;">${i}</a>
         %endfor
         %if pagination["page"] != 1:
              ·
         %endif
         ${pagination["page"]}
         %for i in range(pagination["page"] + 1, pagination["pages"] + 1):
-             · <a href="javascript:void(0)" onclick="window.location='/accounts/${name}/${i}'+window.location.search;">${i}</a>
+	· <a href="javascript:void(0)" onclick="window.location='${"/accounts/" if not combined else "/"}${name}/${i}'+window.location.search;">${i}</a>
         %endfor
         </div>
     %endif
@@ -362,7 +427,7 @@ main {
     } else {
         document.querySelector("#sort").value = "random";
     }
-    document.querySelector("#title-container-links").innerHTML = "<a href='/'>home</a> · " + document.querySelector("#title-container-links").innerHTML
+    document.querySelector("#title-container-links").innerHTML = "<a href='/'>home</a>" + document.querySelector("#title-container-links").innerHTML
 %endif
 document.querySelectorAll(".tweet-text").forEach(div => {
     if (div.innerText === "") {

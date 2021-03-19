@@ -348,7 +348,12 @@ def server(args):
 		logging.info("processing html files")
 		for folder_name in args.folder_name:
 			parsed_folder_name, name = parse_folder_name(folder_name)
-			names[name] = parsed_folder_name
+			try:
+				with open(parsed_folder_name + name + "_user_data.json", "r") as r:
+					username = json.loads(r.read())["username"]
+			except FileNotFoundError:
+				username = name
+			names[name] = parsed_folder_name, name, username
 			with open(parsed_folder_name + name + ".html", 'r') as f:
 				compile_args.folder_name = [folder_name]
 				compile_args.return_conversations = True
@@ -360,7 +365,8 @@ def server(args):
 			"modified_html_files": modified_html_files,
 			"conversations": conversations,
 			"tweet_amount": tweet_amount,
-			"latest_dates": latest_dates
+			"latest_dates": latest_dates,
+			"names": names
 		}, open(os.getcwd() + "/.cached_server_data", "wb"))
 
 	def update_request(conversations):
@@ -413,6 +419,7 @@ def server(args):
 			updated[name] = updated[name].replace(datetime.datetime.now().strftime("%A %m/%d/%Y"), "Today")\
 				.replace((datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%A %m/%d/%Y"), "Yesterday")
 		return template("""
+		<head><title>twitter-archivist</title></head>
 		<body style="margin: 0 auto; max-width:624px; font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, A;">
 		<div style="display: flex; justify-content: space-between; align-items: center">
 			<h1 style="margin: 8px 0">twitter-archivist</h1>
@@ -468,17 +475,17 @@ def server(args):
 			}
 		</script>
 		<hr style="margin-top: 0">
+		<a href="/combined" style="text-decoration: none; padding: 10px; line-height: 22px">combined feed</a>
+		<hr>
 		<main>
-		% for parsed_folder_name, name in folder_names:
-		<div style="padding: 10px;margin: 10px 5px; border-radius: 5px; box-shadow: 0px 0.7px 1px 0.8px lightgray;">
-		<a href="/accounts/{{name}}" style="text-decoration: none">{{name}}</a> <i style="color: grey">· {{updated[name]}} · {{tweet_amount[name]}} tweets</i><br>
-		</div>
-		% end
+			% for parsed_folder_name, name in folder_names:
+			<div style="padding: 10px;margin: 10px 5px; border-radius: 5px; box-shadow: 0px 0.7px 1px 0.8px lightgray;">
+				<a href="/accounts/{{name}}" style="text-decoration: none">{{name}}</a> <i style="color: grey">· {{updated[name]}} · {{tweet_amount[name]}} tweets</i><br>
+			</div>
+			% end
 		</main>
 		</body>
 		""", folder_names=folder_names, updated=updated, tweet_amount=tweet_amount)
-
-
 
 	@route('/refresh')
 	def index():
@@ -490,16 +497,80 @@ def server(args):
 		update_request(conversations)
 		return "updated"
 
+	@route('/combined')
+	def index():
+		redirect("/combined/1")
+
+	@route('/combined/<page:int>')
+	def index(page):
+		sort = request.query["sort"] if "sort" in request.query else "date"
+		reverse = int(request.query["reverse"]) if "reverse" in request.query else 0
+		all_replies = int(request.query["all-replies"]) if "all-replies" in request.query else 1
+		initiating_replies = int(request.query["initiating-replies"]) if "initiating-replies" in request.query else 1
+		conversations_merged = {}
+		for n in conversations.keys():
+			conversations_merged.update(conversations[n])
+		pagination = {
+			"results": args.pagination,
+			"page": page,
+			"sort": sort,
+			"reverse": reverse,
+			"all-replies": all_replies,
+			"initiating-replies": initiating_replies,
+			"pages": ceil(len(conversations_merged) / args.pagination)
+		}
+		start_index = pagination["results"] * (pagination["page"] - 1)
+		end_index = start_index + pagination["results"]
+		conversations_page = []
+		filtered_items = []
+		if initiating_replies or all_replies:
+			for conversation in conversations_merged.values():
+				if initiating_replies and len(conversation[0]["renderedContent"]) >= 1 and conversation[0]["renderedContent"][0] == '@':
+					continue
+				filtered_conversation = []
+				if all_replies:
+					for reply in conversation:
+						if len(reply["renderedContent"]) >= 1 and reply["renderedContent"][0] != '@':
+							filtered_conversation.append(reply)
+					if len(filtered_conversation) == 0:
+						continue
+				else:
+					filtered_conversation = conversation
+				filtered_items.append(filtered_conversation)
+			pagination["pages"] = ceil(len(filtered_items) / args.pagination)
+		else:
+			filtered_items = conversations_merged.values()
+
+		if start_index < len(conversations_merged):
+			if sort == "date":
+				conversations_page = sorted(list(filtered_items), key=lambda x: x[0]["date"],
+											reverse=not bool(reverse))[start_index:end_index]
+			if sort == "thread-size":
+				conversations_page = sorted(list(filtered_items), key=lambda x: len(x),
+											reverse=not bool(reverse))[start_index:end_index]
+			if sort == "like-amount":
+				conversations_page = sorted(list(filtered_items), key=lambda x: x[0]["likeCount"],
+											reverse=not bool(reverse))[start_index:end_index]
+			if sort == "random":
+				conversations_page = list(filtered_items)
+				shuffle(conversations_page)
+				conversations_page = conversations_page[start_index:end_index]
+		return Template(filename=(path.dirname(path.abspath(__file__)) + "/template.mako")).render(name="combined",
+																								   conversations=conversations_page,
+																								   pagination=pagination,
+																								   combined=True,
+																								   combined_names=names)
+
 	# noinspection PyUnresolvedReferences
 	@route("/accounts/<name>/<filepath:re:.*\.json>")
 	def server_static(name, filepath):
-		return static_file(names[name] + filepath, root="/")
+		return static_file(names[name][0] + filepath, root="/")
 
 	# noinspection PyUnresolvedReferences
 	@route('/accounts/<name>/photos/<filepath:path>')
 	@route('/accounts/<name>/<page:int>/photos/<filepath:path>')
 	def server_static(name, filepath):
-		return static_file(names[name] + "photos/" + filepath, root="/")
+		return static_file(names[name][0] + "photos/" + filepath, root="/")
 
 	@route('/accounts/<name>')
 	def index(name):
@@ -531,12 +602,13 @@ def server(args):
 			filtered_items = []
 			if initiating_replies or all_replies:
 				for conversation in conversations[name].values():
-					if initiating_replies and "@" in conversation[0]["renderedContent"]:
+					if initiating_replies and len(conversation[0]["renderedContent"]) >= 1 and conversation[0]["renderedContent"][0] == '@':
 						continue
 					filtered_conversation = []
 					if all_replies:
 						for reply in conversation:
-							if "@" not in reply["renderedContent"]:
+							print(reply["renderedContent"])
+							if len(reply["renderedContent"]) >= 1 and reply["renderedContent"][0] != '@':
 								filtered_conversation.append(reply)
 						if len(filtered_conversation) == 0:
 							continue
