@@ -369,7 +369,7 @@ main {
     })
     function refresh_sort() {
         let reverse = document.querySelector("#checkbox3").checked ? 1 : 0
-        let url = new URL(window.location)
+        let url = new URL(window.location.origin + "/" + "${("" if combined else "accounts/")}" + "${name}" + "/1")
         url.searchParams.set("reverse", reverse)
         if (document.querySelector("#sort").value == "date") {
             url.searchParams.set("sort", "date")
@@ -398,7 +398,7 @@ main {
             } else {
                 document.getElementById('checkbox1').disabled = false;
             }
-            let url = new URL(window.location)
+            let url = new URL(window.location.origin + "/" + "${("" if combined else "accounts/")}" + "${name}" + "/1")
             if (checked3 || url.searchParams.has("reverse"))
                 url.searchParams.set("reverse", checked3 ? 1 : 0)
             if (!checked2 || url.searchParams.has("all-replies"))

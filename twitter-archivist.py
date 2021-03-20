@@ -517,7 +517,6 @@ def server(args):
 			"reverse": reverse,
 			"all-replies": all_replies,
 			"initiating-replies": initiating_replies,
-			"pages": ceil(len(conversations_merged) / args.pagination)
 		}
 		start_index = pagination["results"] * (pagination["page"] - 1)
 		end_index = start_index + pagination["results"]
@@ -530,7 +529,9 @@ def server(args):
 				filtered_conversation = []
 				if all_replies:
 					for reply in conversation:
-						if len(reply["renderedContent"]) >= 1 and reply["renderedContent"][0] != '@':
+						if len(reply["renderedContent"]) >= 1 and reply["renderedContent"][0] == '@':
+							continue
+						else:
 							filtered_conversation.append(reply)
 					if len(filtered_conversation) == 0:
 						continue
@@ -540,6 +541,10 @@ def server(args):
 			pagination["pages"] = ceil(len(filtered_items) / args.pagination)
 		else:
 			filtered_items = conversations_merged.values()
+
+		pagination["pages"] = ceil(len(filtered_items) / args.pagination)
+		if pagination["page"] > pagination["pages"]:
+			redirect("/combined/" + str(pagination["pages"]))
 
 		if start_index < len(conversations_merged):
 			if sort == "date":
@@ -607,8 +612,9 @@ def server(args):
 					filtered_conversation = []
 					if all_replies:
 						for reply in conversation:
-							print(reply["renderedContent"])
-							if len(reply["renderedContent"]) >= 1 and reply["renderedContent"][0] != '@':
+							if len(reply["renderedContent"]) >= 1 and reply["renderedContent"][0] == '@':
+								continue
+							else:
 								filtered_conversation.append(reply)
 						if len(filtered_conversation) == 0:
 							continue
