@@ -66,44 +66,44 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 	if since:
 		since = parse_datetime_arg(since)
 	results = []
-	try:
-		private_headers = {}
-		if private:
-			if headers_file:
-				try:
-					with open(headers_file, "r") as f:
-						private_headers = json.loads(f.read())
-				except:
-					logging.warning("headers_file opening failed")
-			elif input_headers:
-				print("paste headers object:")
-				lines = []
-				while True:
-					line = input()
-					if line:
-						lines.append(line)
-					else:
-						break
-				text = '\n'.join(lines)
-				private_headers = json.loads(text)
-			else:
-				logging.warning("private account with no headers given, skipping")
-				return
-		a = twitter.TwitterUserScraper(username, until=until, private_headers=private_headers).get_items()
-		i = 0
-		for i, tweet in enumerate(a, start=1):
-			tweet_json = json.loads(tweet.json())
-			if since is not None and tweet.date < since:
-				logging.info(f'Exiting due to reaching older results than {since.strftime("%Y-%m-%d")}')
-				break
-			results.append(tweet_json)
-			if i % 100 == 0:
-				logging.info(f'Scraping, {i} results so far')
-		logging.info(f'Done, found {i} results')
-		return results
-	except:
-		logging.warning("error in get_tweets")
-		return results
+	# try:
+	private_headers = {}
+	if private:
+		if headers_file:
+			try:
+				with open(headers_file, "r") as f:
+					private_headers = json.loads(f.read())
+			except:
+				logging.warning("headers_file opening failed")
+		elif input_headers:
+			print("paste headers object:")
+			lines = []
+			while True:
+				line = input()
+				if line:
+					lines.append(line)
+				else:
+					break
+			text = '\n'.join(lines)
+			private_headers = json.loads(text)
+		else:
+			logging.warning("private account with no headers given, skipping")
+			return
+	a = twitter.TwitterUserScraper(username, until=until, private_headers=private_headers).get_items()
+	i = 0
+	for i, tweet in enumerate(a, start=1):
+		tweet_json = json.loads(tweet.json())
+		if since is not None and tweet.date < since:
+			logging.info(f'Exiting due to reaching older results than {since.strftime("%Y-%m-%d")}')
+			break
+		results.append(tweet_json)
+		if i % 100 == 0:
+			logging.info(f'Scraping, {i} results so far')
+	logging.info(f'Done, found {i} results')
+	return results
+	# except:
+	# 	logging.warning("error in get_tweets")
+	# 	return results
 
 
 def archive(args):
@@ -180,11 +180,13 @@ def update(args):
 				logging.warning("no tweets found")
 				break
 			else:
+				failed = True
 				if not args.reverse:
 					for tweet in reversed(tweets):
 						try:
 							if not any(tweet["url"] == x["url"] for x in a):
 								a.insert(0, tweet)
+								failed = False
 								logging.info("added " + tweet["url"])
 						except:
 							logging.warning("failed tweet: " + tweet)
@@ -196,11 +198,14 @@ def update(args):
 						try:
 							if not any(tweet["url"] == x["url"] for x in a):
 								a.append(tweet)
+								failed = False
 								logging.info("added " + tweet["url"])
 							else:
 								logging.info("skipping " + tweet["url"])
 						except:
 							logging.warning("failed tweet: " + tweet)
+				if failed:
+					logging.info("no new tweets found")
 
 		if not failed:
 			try:
@@ -225,7 +230,7 @@ def update(args):
 		compile_args = argparse.Namespace()
 		compile_args.folder_name = [folder_name]
 		compile_args.alert = False
-		if not args.return_conversations:
+		if not args.return_conversations and not failed:
 			compile_args.return_conversations = False
 			compile_html(compile_args)
 		else:
@@ -522,9 +527,13 @@ def server(args):
 		end_index = start_index + pagination["results"]
 		conversations_page = []
 		filtered_items = []
-		if initiating_replies or all_replies:
+		if initiating_replies or all_replies or "search" in request.query:
 			for conversation in conversations_merged.values():
-				if initiating_replies and len(conversation[0]["renderedContent"]) >= 1 and conversation[0]["renderedContent"][0] == '@':
+				keep = False
+				for reply in conversation:
+					if "search" in request.query and request.query["search"].lower() in reply["renderedContent"].lower():
+						keep = True
+				if "search" in request.query and not keep:
 					continue
 				filtered_conversation = []
 				if all_replies:
@@ -565,6 +574,9 @@ def server(args):
 																								   pagination=pagination,
 																								   combined=True,
 																								   combined_names=names)
+	@route("/favicon.ico")
+	def server_static():
+		return static_file("favicon.ico", root=(path.dirname(path.abspath(__file__)) + "/"))
 
 	# noinspection PyUnresolvedReferences
 	@route("/accounts/<name>/<filepath:re:.*\.json>")
@@ -605,8 +617,14 @@ def server(args):
 			end_index = start_index + pagination["results"]
 			conversations_page = []
 			filtered_items = []
-			if initiating_replies or all_replies:
+			if initiating_replies or all_replies or "search" in request.query:
 				for conversation in conversations[name].values():
+					keep = False
+					for reply in conversation:
+						if "search" in request.query and request.query["search"].lower() in reply["renderedContent"].lower():
+							keep = True
+					if "search" in request.query and not keep:
+						continue
 					if initiating_replies and len(conversation[0]["renderedContent"]) >= 1 and conversation[0]["renderedContent"][0] == '@':
 						continue
 					filtered_conversation = []

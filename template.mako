@@ -9,7 +9,7 @@
     white-space: nowrap;
     width: 100%;
 	padding-top: 8px;
-    overflow: scroll
+    overflow: auto
 }
 .media {
     max-height: 351px;
@@ -66,7 +66,7 @@ h1 {
     padding: 10px;
     border-top: 1px dashed grey;
 	border-bottom: 1px dashed grey;
-    overflow: scroll
+    overflow: auto
 }
 .conversation {
     padding: 10px;
@@ -370,6 +370,7 @@ main {
     function refresh_sort() {
         let reverse = document.querySelector("#checkbox3").checked ? 1 : 0
         let url = new URL(window.location.origin + "/" + "${("" if combined else "accounts/")}" + "${name}" + "/1")
+        url.search = (new URL(window.location)).searchParams
         url.searchParams.set("reverse", reverse)
         if (document.querySelector("#sort").value == "date") {
             url.searchParams.set("sort", "date")
@@ -399,6 +400,7 @@ main {
                 document.getElementById('checkbox1').disabled = false;
             }
             let url = new URL(window.location.origin + "/" + "${("" if combined else "accounts/")}" + "${name}" + "/1")
+            url.search = (new URL(window.location)).searchParams
             if (checked3 || url.searchParams.has("reverse"))
                 url.searchParams.set("reverse", checked3 ? 1 : 0)
             if (!checked2 || url.searchParams.has("all-replies"))

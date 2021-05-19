@@ -13,6 +13,7 @@ import string
 import time
 import typing
 import urllib.parse
+import brotli
 
 logger = logging.getLogger(__name__)
 _API_AUTHORIZATION_HEADER = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs=1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
@@ -253,6 +254,7 @@ class TwitterAPIScraper(base.Scraper):
 		if r.status_code == 429:
 			self._unset_guest_token()
 			self._ensure_guest_token()
+			time.sleep(15 * 60)
 			return False, "rate-limited"
 		if (
 				r.headers.get("content-type", "").replace(" ", "")
@@ -267,7 +269,7 @@ class TwitterAPIScraper(base.Scraper):
 		self._ensure_guest_token()
 		if private_headers:
 			h = private_headers
-			print("private headers")
+			# print("private headers")
 		else:
 			h = self._apiHeaders
 		r = self._get(
@@ -279,7 +281,10 @@ class TwitterAPIScraper(base.Scraper):
 		try:
 			obj = r.json()
 		except json.JSONDecodeError as e:
-			raise base.ScraperException("Received invalid JSON from Twitter") from e
+			try:
+				obj = json.loads(brotli.decompress(r.content))
+			except:
+				raise base.ScraperException("Received invalid JSON from Twitter") from e
 		return obj
 
 	def _iter_api_data(self, endpoint, params, paginationParams=None, cursor=None, private_headers=None):
@@ -354,6 +359,15 @@ class TwitterAPIScraper(base.Scraper):
 				entries = [instruction["replaceEntry"]["entry"]]
 			else:
 				continue
+			conversation_fixed = []
+			for entry in entries:
+				if not entry["entryId"].startswith("conversationThread-"):
+					conversation_fixed.append(entry)
+				else:
+					for tweet in entry["content"]["timelineModule"]["items"]:
+						tweet["content"] = {"item": tweet["item"]}
+						conversation_fixed.append(tweet)
+			entries = conversation_fixed
 			for entry in entries:
 				if entry["entryId"].startswith("sq-I-t-") or entry[
 					"entryId"
@@ -394,6 +408,9 @@ class TwitterAPIScraper(base.Scraper):
 								"id"
 							]
 						]
+					elif ("tombstone" in entry["content"]["item"]["content"]):
+						print("deleted")
+						continue
 					else:
 						raise base.ScraperException(
 							f'Unable to handle entry {entry["entryId"]!r}'
@@ -660,6 +677,79 @@ class TwitterSearchScraper(TwitterAPIScraper):
 		return cls(args.query, cursor=args.cursor, retries=args.retries)
 
 
+class TwitterThreadScraper(TwitterAPIScraper):
+	name = "twitter-thread"
+
+	def __init__(self, url, private_headers=None, cursor=None, **kwargs):
+		super().__init__(
+			baseUrl=url,
+			**kwargs,
+		)
+		self._id = url.split("/")[-1]
+		self._cursor = cursor
+		self._private_headers = private_headers
+
+	def _check_scroll_response(self, r):
+		if r.status_code == 429:
+			# Accept a 429 response as "valid" to prevent retries; handled explicitly in get_items
+			return True, None
+		if (
+				r.headers.get("content-type").replace(" ", "")
+				!= "application/json;charset=utf-8"
+		):
+			return False, f"content type is not JSON"
+		if r.status_code != 200:
+			return False, f"non-200 status code"
+		return True, None
+
+	def get_items(self):
+		params = {
+			"include_profile_interstitial_type": "1",
+			"include_blocking": "1",
+			"include_blocked_by": "1",
+			"include_followed_by": "1",
+			"include_want_retweets": "1",
+			"include_mute_edge": "1",
+			"include_can_dm": "1",
+			"include_can_media_tag": "1",
+			"skip_status": "1",
+			"cards_platform": "Web-12",
+			"include_cards": "1",
+			"include_ext_alt_text": "true",
+			"include_quote_count": "true",
+			"include_reply_count": "1",
+			"tweet_mode": "extended",
+			"include_entities": "true",
+			"include_user_entities": "true",
+			"include_ext_media_color": "true",
+			"include_ext_media_availability": "true",
+			"send_error_codes": "true",
+			"simple_quoted_tweets": "true",
+			"count": "100",
+		}
+		paginationParams = params.copy()
+		paginationParams["cursor"] = None
+		for d in (params, paginationParams):
+			d["ext"] = "mediaStats%2ChighlightedLabel"
+
+		run = False
+		for obj in self._iter_api_data(
+				f"https://twitter.com/i/api/2/timeline/conversation/{self._id}.json", params, paginationParams, private_headers=self._private_headers
+		):
+			if not run:
+				yield from self._instructions_to_tweets(obj)
+				run = True
+
+	@classmethod
+	def setup_parser(cls, subparser):
+		subparser.add_argument("--cursor", metavar="CURSOR")
+		subparser.add_argument("url", help="A Twitter search string")
+
+	@classmethod
+	def from_args(cls, args):
+		return cls(args.url, cursor=args.cursor, retries=args.retries)
+
+
 class TwitterUserScraper(TwitterSearchScraper):
 	name = "twitter-user"
 
@@ -791,6 +881,7 @@ class TwitterProfileScraper(TwitterUserScraper):
 				f"https://api.twitter.com/2/timeline/profile/{user.id}.json",
 				params,
 				paginationParams,
+				private_headers=self._private_headers
 		):
 			yield from self._instructions_to_tweets(obj)
 
@@ -811,79 +902,79 @@ class TwitterHashtagScraper(TwitterSearchScraper):
 		return cls(args.hashtag, retries=args.retries)
 
 
-class TwitterThreadScraper(TwitterOldDesignScraper):
-	name = "twitter-thread"
-
-	def __init__(self, tweetID=None, **kwargs):
-		if tweetID is not None and tweetID.strip("0123456789") != "":
-			raise ValueError("Invalid tweet ID, must be numeric")
-		super().__init__(**kwargs)
-		self._tweetID = tweetID
-
-	def get_items(self):
-		headers = {
-			"User-Agent": f"Opera/9.80 (Windows NT 6.1; WOW64) Presto/2.12.388 Version/12.18 Bot"
-		}
-
-		# Fetch the page of the last tweet in the thread
-		r = self._get(
-			f"https://twitter.com/user/status/{self._tweetID}", headers=headers
-		)
-		soup = bs4.BeautifulSoup(r.text, "lxml")
-
-		# Extract tweets on that page in the correct order; first, the tweet that was supplied, then the ancestors with pagination if necessary
-		tweet = soup.find("div", "ThreadedConversation--permalinkTweetWithAncestors")
-		if tweet:
-			tweet = tweet.find("div", "tweet")
-		if not tweet:
-			logger.warning(
-				"Tweet does not exist, is not a thread, or does not have ancestors"
-			)
-			return
-		items = list(self._feed_to_items([tweet]))
-		assert len(items) == 1
-		yield items[0]
-		username = items[0].username
-
-		ancestors = soup.find("div", "ThreadedConversation--ancestors")
-		if not ancestors:
-			logger.warning("Tweet does not have ancestors despite claiming to")
-			return
-		feed = reversed(ancestors.find_all("li", "js-stream-item"))
-		yield from self._feed_to_items(feed)
-
-		# If necessary, iterate through pagination until reaching the initial tweet
-		streamContainer = ancestors.find("div", "stream-container")
-		if (
-				not streamContainer.has_attr("data-max-position")
-				or streamContainer["data-max-position"] == ""
-		):
-			return
-		minPosition = streamContainer["data-max-position"]
-		while True:
-			r = self._get(
-				f"https://twitter.com/i/{username}/conversation/{self._tweetID}?include_available_features=1&include_entities=1&min_position={minPosition}",
-				headers=headers,
-				responseOkCallback=self._check_json_callback,
-			)
-
-			obj = json.loads(r.text)
-			soup = bs4.BeautifulSoup(obj["items_html"], "lxml")
-			feed = reversed(soup.find_all("li", "js-stream-item"))
-			yield from self._feed_to_items(feed)
-			if not obj["has_more_items"]:
-				break
-			minPosition = obj["max_position"]
-
-	@classmethod
-	def setup_parser(cls, subparser):
-		subparser.add_argument(
-			"tweetID", help="A tweet ID of the last tweet in a thread"
-		)
-
-	@classmethod
-	def from_args(cls, args):
-		return cls(tweetID=args.tweetID, retries=args.retries)
+# class TwitterThreadScraper(TwitterOldDesignScraper):
+# 	name = "twitter-thread"
+#
+# 	def __init__(self, tweetID=None, **kwargs):
+# 		if tweetID is not None and tweetID.strip("0123456789") != "":
+# 			raise ValueError("Invalid tweet ID, must be numeric")
+# 		super().__init__(**kwargs)
+# 		self._tweetID = tweetID
+#
+# 	def get_items(self):
+# 		headers = {
+# 			"User-Agent": f"Opera/9.80 (Windows NT 6.1; WOW64) Presto/2.12.388 Version/12.18 Bot"
+# 		}
+#
+# 		# Fetch the page of the last tweet in the thread
+# 		r = self._get(
+# 			f"https://twitter.com/user/status/{self._tweetID}", headers=headers
+# 		)
+# 		soup = bs4.BeautifulSoup(r.text, "lxml")
+#
+# 		# Extract tweets on that page in the correct order; first, the tweet that was supplied, then the ancestors with pagination if necessary
+# 		tweet = soup.find("div", "ThreadedConversation--permalinkTweetWithAncestors")
+# 		if tweet:
+# 			tweet = tweet.find("div", "tweet")
+# 		if not tweet:
+# 			logger.warning(
+# 				"Tweet does not exist, is not a thread, or does not have ancestors"
+# 			)
+# 			return
+# 		items = list(self._feed_to_items([tweet]))
+# 		assert len(items) == 1
+# 		yield items[0]
+# 		username = items[0].username
+#
+# 		ancestors = soup.find("div", "ThreadedConversation--ancestors")
+# 		if not ancestors:
+# 			logger.warning("Tweet does not have ancestors despite claiming to")
+# 			return
+# 		feed = reversed(ancestors.find_all("li", "js-stream-item"))
+# 		yield from self._feed_to_items(feed)
+#
+# 		# If necessary, iterate through pagination until reaching the initial tweet
+# 		streamContainer = ancestors.find("div", "stream-container")
+# 		if (
+# 				not streamContainer.has_attr("data-max-position")
+# 				or streamContainer["data-max-position"] == ""
+# 		):
+# 			return
+# 		minPosition = streamContainer["data-max-position"]
+# 		while True:
+# 			r = self._get(
+# 				f"https://twitter.com/i/{username}/conversation/{self._tweetID}?include_available_features=1&include_entities=1&min_position={minPosition}",
+# 				headers=headers,
+# 				responseOkCallback=self._check_json_callback,
+# 			)
+#
+# 			obj = json.loads(r.text)
+# 			soup = bs4.BeautifulSoup(obj["items_html"], "lxml")
+# 			feed = reversed(soup.find_all("li", "js-stream-item"))
+# 			yield from self._feed_to_items(feed)
+# 			if not obj["has_more_items"]:
+# 				break
+# 			minPosition = obj["max_position"]
+#
+# 	@classmethod
+# 	def setup_parser(cls, subparser):
+# 		subparser.add_argument(
+# 			"tweetID", help="A tweet ID of the last tweet in a thread"
+# 		)
+#
+# 	@classmethod
+# 	def from_args(cls, args):
+# 		return cls(tweetID=args.tweetID, retries=args.retries)
 
 
 class TwitterListPostsScraper(TwitterSearchScraper):
