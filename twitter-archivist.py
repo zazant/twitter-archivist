@@ -23,7 +23,7 @@ from bottle import route, run, template, static_file, redirect, request
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 
-# function from snscrape, originally
+# function from snscrape
 def parse_datetime_arg(arg):
 	for format in (
 			"%Y-%m-%d %H:%M:%S %z",

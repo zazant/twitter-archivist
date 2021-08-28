@@ -3,3 +3,4 @@ tqdm
 requests[socks]
 bs4
 bottle
+brotli
