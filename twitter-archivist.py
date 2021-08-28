@@ -66,7 +66,6 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 	if since:
 		since = parse_datetime_arg(since)
 	results = []
-	# try:
 	private_headers = {}
 	if private:
 		if headers_file:
@@ -101,9 +100,6 @@ def get_tweets(username, since=None, until=None, private=False, headers_file=Non
 			logging.info(f'Scraping, {i} results so far')
 	logging.info(f'Done, found {i} results')
 	return results
-	# except:
-	# 	logging.warning("error in get_tweets")
-	# 	return results
 
 
 def archive(args):
@@ -409,7 +405,6 @@ def server(args):
 
 	@route('/')
 	def index():
-		# account_info = {}
 		updated = {}
 		folder_names = []
 		for folder_name in args.folder_name:
@@ -418,8 +413,6 @@ def server(args):
 				.replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime("%A %m/%d/%Y at %-I:%M %p")
 			folder_names.append((parsed_folder_name, name))
 		folder_names = sorted(folder_names, key=lambda x: datetime.datetime.strptime(updated[x[1]], "%A %m/%d/%Y at %I:%M %p"), reverse=True)
-		# 	with open(parsed_folder_name + name + "_user_data.json", "r") as r:
-		# 		account_info[name] = json.loads(r.read())
 		for parsed_folder_name, name in folder_names:
 			updated[name] = updated[name].replace(datetime.datetime.now().strftime("%A %m/%d/%Y"), "Today")\
 				.replace((datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%A %m/%d/%Y"), "Yesterday")
@@ -578,12 +571,10 @@ def server(args):
 	def server_static():
 		return static_file("favicon.ico", root=(path.dirname(path.abspath(__file__)) + "/"))
 
-	# noinspection PyUnresolvedReferences
 	@route("/accounts/<name>/<filepath:re:.*\.json>")
 	def server_static(name, filepath):
 		return static_file(names[name][0] + filepath, root="/")
 
-	# noinspection PyUnresolvedReferences
 	@route('/accounts/<name>/photos/<filepath:path>')
 	@route('/accounts/<name>/<page:int>/photos/<filepath:path>')
 	def server_static(name, filepath):
@@ -597,7 +588,6 @@ def server(args):
 			redirect("/accounts/" + name + "/1")
 
 	if args.pagination:
-		# noinspection PyUnresolvedReferences
 		@route('/accounts/<name>/<page:int>')
 		def index(name, page):
 			sort = request.query["sort"] if "sort" in request.query else "date"
@@ -689,7 +679,7 @@ compile_parser.set_defaults(alert=True)
 
 server_parser = subparsers.add_parser("server")
 server_parser.add_argument("folder_name", nargs="+", type=str)
-server_parser.add_argument('--pagination', default=0, dest='pagination', type=int)
+server_parser.add_argument('--pagination', default=50, dest='pagination', type=int)
 server_parser.add_argument('--port', default=8000, dest='port', type=int)
 server_parser.add_argument('--ip', default="localhost", dest='ip', type=str)
 server_parser.add_argument('--cache', dest='cache', action='store_true')

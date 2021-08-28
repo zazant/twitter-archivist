@@ -1,0 +1,3 @@
+create a setting to compile with pagination
+    use multiple json documents with portions of json data
+    need to tie this together with the server setting using flags as it would disable sorting

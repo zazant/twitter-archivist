@@ -111,7 +111,6 @@ main {
 		<h1>${name}</h1>
 		<div id="title-container-links">
             %if not combined:
-             ·
             <a href="${name}_data.json">json</a>
             %endif
         </div>
@@ -307,10 +306,7 @@ main {
 	document.querySelector("#checkbox3").addEventListener('click', event => {
 		document.querySelector("main").style.flexDirection = document.querySelector("#checkbox3").checked ? "column-reverse" : "column"
 	})
-
 	refresh();
-	document.querySelector("#title-container-links").innerHTML =
-        "<span>" + document.querySelectorAll(".tweet").length + " tweets</span> · " + document.querySelector("#title-container-links").innerHTML;
 
 	function shuffle(array) {
 		var currentIndex = array.length, temporaryValue, randomIndex;
@@ -429,7 +425,12 @@ main {
     } else {
         document.querySelector("#sort").value = "random";
     }
+
+    %if not combined:
+    document.querySelector("#title-container-links").innerHTML = "<a href='/'>home</a> · " + document.querySelector("#title-container-links").innerHTML
+    %else:
     document.querySelector("#title-container-links").innerHTML = "<a href='/'>home</a>" + document.querySelector("#title-container-links").innerHTML
+    %endif
 %endif
 document.querySelectorAll(".tweet-text").forEach(div => {
     if (div.innerText === "") {
@@ -438,15 +439,6 @@ document.querySelectorAll(".tweet-text").forEach(div => {
         }
     }
 })
-
-Array.from(document.querySelectorAll(".container"))
-        .filter(container => container.children.length === 1)
-        .forEach(container => {
-            //container.children[0].style.maxHeight = "100%";
-            //container.children[0].style.maxWidth = "100%";
-            //container.children[0].style.height = "auto";
-            //container.children[0].style.width = "auto";
-        })
 
 document.querySelector("#loading").style.display = "none";
 document.querySelector("main").style.display = "flex";
