@@ -59,7 +59,7 @@ requirements: `mako, tqdm, requests, bs4, bottle, python >= 3.8`
 ## combined view
 
 <kbd>
-<img width="647" alt="Screen Shot 2021-08-28 at 6 56 55 PM" src="https://user-images.githubusercontent.com/14267785/131233039-b77e9a95-6569-4bc2-a1c1-d644ef113372.png">
+<img width="998" alt="Screen Shot 2021-09-05 at 12 48 20 PM" src="https://user-images.githubusercontent.com/14267785/132134788-f0a113a9-53e8-4a9b-99a1-a168ccff4e27.png">
 </kbd>
 
 ---
