@@ -40,11 +40,36 @@ requirements: `mako, tqdm, requests, bs4, bottle, python >= 3.8`
 
 ---
 
-## guide
+## guide - archiving @pontifex and @dalailama
 
-1. archive user "pontifex" as "pope"<kbd><img src="https://user-images.githubusercontent.com/14267785/131233036-bb242866-6478-41cf-ad19-e6b72bd2137f.png"></kbd>
-2. start server with "pope" and "dalai_lama" folders (this step is optional, you could view un-paginated chronological results through the html file)<br><kbd><img src="https://user-images.githubusercontent.com/14267785/131233037-7115f174-8f5a-4c86-9656-da244687e5d0.png"></kbd>
-3. view archive<br><kbd><img width="640" src="https://user-images.githubusercontent.com/14267785/131233038-2c4a6657-fc7a-45d2-b77b-1092f12066be.png"></kbd>
+1. create new folder for users that you want to archive inside the twitter-archivist directory (or elsewhere)
+
+	```c
+	mkdir users
+	cd users
+	```
+
+3. archive user @pontifex as "pope"
+
+	```c
+	python3 ../twitter-archivist.py archive pope pontifex
+	```
+
+3. archive user @dalailama as "dalai_lama"
+
+	```c
+	python3 ../twitter-archivist.py archive dalai_lama dalailama
+	```
+
+3. start server with "pope" and "dalai_lama" folders (this step is optional, you could view un-paginated chronological results through the html files)
+
+	```c
+	python3 ../twitter-archivist.py server *
+	```
+
+5. view archive at [localhost:8000](http://localhost:8000)
+
+<kbd><img width="640" src="https://user-images.githubusercontent.com/14267785/131233038-2c4a6657-fc7a-45d2-b77b-1092f12066be.png"></kbd>
 
 ---
 
