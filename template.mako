@@ -12,38 +12,38 @@
     overflow: auto
 }
 .media {
-    max-height: 351px;
-    width: auto;
-    height: auto;
-    border: 1px solid lightgrey;
+    border: 1px solid rgb(225, 225, 225);
+    border-radius: 7px;
 }
-.container>.media {
-    height: 351px;
+.container>a>.media, .container>.media {
+    max-height: 200px;
 }
-.container>.media:nth-child(1) {
-    border-radius: 7px 0 0 7px;
-}
-.container>.media:nth-last-child(1) {
-    border-radius: 0 7px 7px 0;
-}
-.container>.media:only-child {
-    height: auto !important;
-    border-radius: 7px !important;
+.container>a:only-child>.media, .container>.media:only-child {
+    max-height: 250px;
+    border-radius: 7px;
     max-width: 99%;
 }
 a {
 	text-decoration: none;
 	//color: black;
 }
-* {
+/*
+{
 	font-family: -apple-system, system-ui, "Segoe UI", Roboto, Helvetica, A;
 }
+*/
 body {
 	max-width: 624px;
 	margin: 0 auto;
+	font-family: -apple-system, system-ui, "Segoe UI", Roboto, Helvetica, A;
 }
 h1 {
 	margin: 8px 0;
+}
+hr {
+    border-style: double;
+    border-bottom: none;
+    border-color: rgb(200, 200, 200)
 }
 .quote {
 	border-top: 1px dashed grey;
@@ -105,14 +105,22 @@ main {
 	display: flex;
 	justify-content: space-between
 }
+img:hover {
+    cursor: zoom-in
+}
 </style>
 <body>
 	<div id="title-container">
 		<h1>${name}</h1>
+        <div>
+        
 		<div id="title-container-links">
             %if not combined:
             <a href="${name}_data.json">json</a>
             %endif
+            ·
+            <a style="cursor: pointer" id="theme-button" onclick="changeTheme()">default</a>
+        </div>
         </div>
 	</div>
 	<hr style="margin-top: 0">
@@ -194,7 +202,7 @@ main {
             <div class="container">
                 %for i in d["media"]:
                 %if i["type"] == "photo":
-                <img src="${fixed_tag(i['fullUrl'])}" class="media">
+                <a target="_blank" href="${fixed_tag(i['fullUrl'])}"><img src="${fixed_tag(i['fullUrl'])}" class="media"></a>
                 %endif
                 %if i["type"] == "video":
                 <video controls class="media">
@@ -216,7 +224,7 @@ main {
 				<div class="container">
 					%for i in d["quotedTweet"]["media"]:
 					%if i["type"] == "photo":
-                    <img src="${fixed_tag(i["fullUrl"])}" class="media">
+                    <a target="_blank" href="${fixed_tag(i['fullUrl'])}"><img src="${fixed_tag(i["fullUrl"])}" class="media"></a>
 					%endif
 					%if i["type"] == "video":
                     <video controls class="media">
@@ -433,14 +441,111 @@ main {
     %endif
 %endif
 document.querySelectorAll(".tweet-text").forEach(div => {
-    if (div.innerText === "") {
+    if (div.innerText.trim() === "") {
         if (div.parentElement.querySelector(".container")) {
-            div.parentElement.querySelector(".container").style.paddingTop = "0";
+            div.parentElement.querySelector(".container").style.paddingTop = "4.25px";
         }
     }
 })
 
 document.querySelector("#loading").style.display = "none";
 document.querySelector("main").style.display = "flex";
+
+themeValue = 0
+
+function changeTheme() {
+    themeValue ++;
+    if (themeValue > 2) {
+        themeValue = 0;
+    }
+    localStorage.setItem('themeValue', themeValue);
+    if (themeValue == 0) {
+        document.body.style.backgroundColor = "white";
+        document.body.style.color = "black"
+        document.body.style.fontFamily = "-apple-system, system-ui, \"Segoe UI\", Roboto, Helvetica, A";
+        document.querySelector("#theme-button").text = "default"
+        document.querySelectorAll(".conversation").forEach(c => {
+            c.style.boxShadow = "0px 0.7px 1px 0.8px lightgray"
+            c.style.borderRadius = "5px"
+            c.style.border = "unset"
+        });
+        document.querySelectorAll(".media").forEach(c => {
+            c.style.borderRadius = "7px"
+            c.style.border = "1px solid rgb(225, 225, 225)"
+        });
+        document.querySelectorAll("hr").forEach(c => c.style.display = "block")
+    } else if (themeValue == 1) {
+        document.body.style.backgroundColor = "black";
+        document.body.style.fontFamily = "Times New Roman";
+        document.body.style.color = "white";
+        document.querySelectorAll(".conversation").forEach(c => {
+            c.style.boxShadow = "unset"
+            c.style.borderRadius = 0
+            c.style.border = "1px solid white"
+        });
+        document.querySelectorAll(".media").forEach(c => {
+            c.style.borderRadius = 0
+            c.style.border = "1px solid lime"
+        });
+        document.querySelector("#theme-button").text = "black"
+    } else if (themeValue == 2) {
+        document.body.style.backgroundColor = "white";
+        document.body.style.color = "black";
+        document.querySelectorAll(".conversation").forEach(c => {
+            c.style.border = "1px solid lightgrey"
+        });
+        document.querySelector("#theme-button").text = "white"
+        ## document.querySelectorAll("hr").forEach(c => c.style.display = "none")
+        document.querySelectorAll(".media").forEach(c => {
+            c.style.borderRadius = 0
+            c.style.border = "1px solid lightgrey"
+        });
+    }
+}
+
+function loadTheme() {
+    if (localStorage && localStorage.getItem('themeValue')) {
+        var storedTheme = parseInt(localStorage.getItem('themeValue'));
+        for (let i = 0; i < storedTheme; i++) {
+            changeTheme()
+        }
+    }
+}
+
+loadTheme()
+
+## var imgHeight;
+## var imgWidth;
+
+## function findHHandWW() {
+##     imgHeight = this.height;
+##     imgWidth = this.width;
+##     return true;
+## }
+
+## function showImage(imgPath) {
+##     var myImage = new Image();
+##     myImage.name = imgPath;
+##     myImage.onload = findHHandWW;
+##     myImage.src = imgPath;
+## }
+
+## document.querySelectorAll(".container").forEach(c => {
+##     if (!c.querySelector("video")) {
+##         let maxHeight = 50
+##         console.log(maxHeight)
+##         c.querySelectorAll("img").forEach(d => {
+##             imgHeight = d.naturalHeight
+##             if (imgHeight > maxHeight)
+##                 maxHeight = imgHeight
+##         })
+##         if (maxHeight > 351) {
+##             maxHeight = 351
+##         }
+##         c.querySelectorAll("img").forEach(d => {
+##             d.style.height = maxHeight.toString() + "px"
+##         })
+##     }
+## })
 </script>
 </html>
